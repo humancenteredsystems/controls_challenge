@@ -3,6 +3,11 @@ import importlib
 import numpy as np
 import onnxruntime as ort
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import torch
+if torch.cuda.is_available():
+    torch.cuda.init()
+    torch.cuda.set_device(0)
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -66,10 +71,26 @@ class TinyPhysicsModel:
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
     options.log_severity_level = 3
-    provider = 'CPUExecutionProvider'
+    providers = ort.get_available_providers()
+    if 'CUDAExecutionProvider' in providers:
+        provider = 'CUDAExecutionProvider'
+    else:
+        provider = 'CPUExecutionProvider'
 
+    session_providers = [
+        ('CUDAExecutionProvider', {
+            'device_id': 0,
+            'arena_extend_strategy': 'kSameAsRequested',
+            'gpu_mem_limit': 2 * 1024 * 1024 * 1024,
+        }),
+        'CPUExecutionProvider'
+    ]
     with open(model_path, "rb") as f:
-      self.ort_session = ort.InferenceSession(f.read(), options, [provider])
+      model_bytes = f.read()
+    try:
+      self.ort_session = ort.InferenceSession(model_bytes, options, session_providers)
+    except Exception:
+      self.ort_session = ort.InferenceSession(model_bytes, options, ['CPUExecutionProvider'])
 
   def softmax(self, x, axis=-1):
     e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
@@ -181,8 +202,9 @@ class TinyPhysicsSimulator:
     ax.set_ylabel(axis_labels[1])
 
   def compute_cost(self) -> Dict[str, float]:
-    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
-    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
+    # Compute cost over full segment after control start
+    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:]
+    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:]
 
     lat_accel_cost = np.mean((target - pred)**2) * 100
     jerk_cost = np.mean((np.diff(pred) / DEL_T)**2) * 100
