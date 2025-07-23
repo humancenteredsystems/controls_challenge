@@ -72,7 +72,13 @@ def test_generate_new_variation_and_count():
         # Each gain list length matches
         for key in base_gains:
             assert len(ps.gains[key]) == len(base_gains[key])
-        # New IDs
+        # New IDs and metadata
         assert ps.id != base_ps.id
         assert ps.status == "active"
         assert ps.rounds_survived == 0
+        # Ensure exploration: at least one gain differs
+        assert any(
+            ps.gains[key][i] != base_gains[key][i]
+            for key in base_gains
+            for i in range(len(base_gains[key]))
+        )

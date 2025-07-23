@@ -1,0 +1,17 @@
+{
+  "tournament_summary": [
+    {
+      "round": 1,
+      "elites": [
+        "e9e5eb16-6f76-4533-bba4-b10fb78d0964"
+      ],
+      "revived": [
+        "47e582bb-d39c-4424-9f32-3a28b842240b"
+      ],
+      "new": [
+        "09880a59-71d5-4412-8b84-fce5a3991cc9"
+      ],
+      "best_cost": 11897.656910467551
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "tournament_summary": [
+    {
+      "round": 1,
+      "elites": [
+        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
+        "09140469-5844-4626-8d32-56d0a972bcef"
+      ],
+      "revived": [
+        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
+      ],
+      "new": [
+        "9e582193-cddd-4d96-b8e4-14c984710dda"
+      ],
+      "best_cost": 36.0
+    },
+    {
+      "round": 2,
+      "elites": [
+        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
+        "09140469-5844-4626-8d32-56d0a972bcef"
+      ],
+      "revived": [
+        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
+      ],
+      "new": [
+        "b436e50d-2e69-4845-9e67-98f4da1ca54c"
+      ],
+      "best_cost": 36.0
+    },
+    {
+      "round": 3,
+      "elites": [
+        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
+        "09140469-5844-4626-8d32-56d0a972bcef"
+      ],
+      "revived": [
+        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
+      ],
+      "new": [
+        "59edf6aa-b37f-4c60-9355-c3ef0bfb58b1"
+      ],
+      "best_cost": 36.0
+    }
+  ]
+}
