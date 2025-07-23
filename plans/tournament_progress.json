@@ -3,44 +3,30 @@
     {
       "round": 1,
       "elites": [
-        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
-        "09140469-5844-4626-8d32-56d0a972bcef"
+        "1812ce7d-531e-45c7-b097-42ec6e2c1973"
       ],
       "revived": [
-        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
+        "4de12332-bdfd-4f69-be03-f1ccd8fb27f8"
       ],
       "new": [
-        "9e582193-cddd-4d96-b8e4-14c984710dda"
+        "d95e4c96-d0e4-4fbc-948d-8fadc44bb002",
+        "3becff9e-9f09-48bf-9789-fb4f9f0ee0b3"
       ],
-      "best_cost": 36.0
+      "best_cost": 12254.611399533382
     },
     {
       "round": 2,
       "elites": [
-        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
-        "09140469-5844-4626-8d32-56d0a972bcef"
+        "d95e4c96-d0e4-4fbc-948d-8fadc44bb002"
       ],
       "revived": [
-        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
+        "4de12332-bdfd-4f69-be03-f1ccd8fb27f8"
       ],
       "new": [
-        "b436e50d-2e69-4845-9e67-98f4da1ca54c"
+        "30d61ff7-7021-496f-9f8a-d03156068a2d",
+        "6148b8da-bfe9-4034-b0ae-2ae0d52950cf"
       ],
-      "best_cost": 36.0
-    },
-    {
-      "round": 3,
-      "elites": [
-        "f285a9fd-2521-4ace-8a18-c0ee7f3b340f",
-        "09140469-5844-4626-8d32-56d0a972bcef"
-      ],
-      "revived": [
-        "c2d06d7f-c466-4296-87c4-558ff19e94fd"
-      ],
-      "new": [
-        "59edf6aa-b37f-4c60-9355-c3ef0bfb58b1"
-      ],
-      "best_cost": 36.0
+      "best_cost": 10676.336080617797
     }
   ]
 }

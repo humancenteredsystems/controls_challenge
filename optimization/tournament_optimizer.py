@@ -121,14 +121,26 @@ def cleanup_controllers(prefix: str = "temp_") -> None:
 
 def evaluate(ps: ParameterSet, data_files: List[str], model_path: str, max_files: int) -> None:
     """Evaluate a ParameterSet and fill its stats."""
+    import sys
+    
     total_costs: List[float] = []
     mod = _make_temp_controller(ps)
+    
+    # Clear module from cache if it exists to force fresh import
+    full_module_name = f"controllers.{mod}"
+    if full_module_name in sys.modules:
+        del sys.modules[full_module_name]
+    
     try:
         for file in data_files[:max_files]:
             cost, _, _ = run_rollout(file, mod, model_path, debug=False)
             total_costs.append(cost["total_cost"])
     finally:
         cleanup_controllers(prefix=f"temp_{ps.id.replace('-', '')}")
+        # Also clean up from sys.modules
+        if full_module_name in sys.modules:
+            del sys.modules[full_module_name]
+    
     if total_costs:
         arr = np.array(total_costs)
         ps.stats = {

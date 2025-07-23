@@ -3,11 +3,14 @@ import importlib
 import numpy as np
 import onnxruntime as ort
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import torch
-if torch.cuda.is_available():
-    torch.cuda.init()
-    torch.cuda.set_device(0)
+
+# FORCE CPU-ONLY MODE to avoid GPU driver issues
+# GPU acceleration disabled due to system instability
+CUDA_AVAILABLE = False
+print("GPU acceleration disabled - using CPU-only mode for stability")
+
+# Disable CUDA entirely to prevent hanging
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -70,27 +73,25 @@ class TinyPhysicsModel:
     options = ort.SessionOptions()
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
-    options.log_severity_level = 3
-    providers = ort.get_available_providers()
-    if 'CUDAExecutionProvider' in providers:
-        provider = 'CUDAExecutionProvider'
-    else:
-        provider = 'CPUExecutionProvider'
-
-    session_providers = [
-        ('CUDAExecutionProvider', {
-            'device_id': 0,
-            'arena_extend_strategy': 'kSameAsRequested',
-            'gpu_mem_limit': 2 * 1024 * 1024 * 1024,
-        }),
-        'CPUExecutionProvider'
-    ]
+    options.log_severity_level = 3 if not debug else 0
+    
+    # FORCE CPU-ONLY: No GPU provider detection to avoid hangs
+    session_providers = ['CPUExecutionProvider']
+    
+    if debug:
+        print("Using CPU-only execution (GPU disabled for stability)")
+    
+    # Load model and create session - CPU only
     with open(model_path, "rb") as f:
       model_bytes = f.read()
+    
     try:
+      # Only create CPU session - no GPU detection
       self.ort_session = ort.InferenceSession(model_bytes, options, session_providers)
-    except Exception:
-      self.ort_session = ort.InferenceSession(model_bytes, options, ['CPUExecutionProvider'])
+      if debug:
+          print("SUCCESS: ONNX Runtime session created with CPU-only execution")
+    except Exception as e:
+      raise RuntimeError(f"Failed to create ONNX Runtime CPU session: {e}")
 
   def softmax(self, x, axis=-1):
     e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))

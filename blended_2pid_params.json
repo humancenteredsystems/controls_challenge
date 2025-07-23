@@ -1,0 +1,17 @@
+{
+  "low_gains": [
+    0.286,
+    0.094,
+    -0.088
+  ],
+  "high_gains": [
+    0.155,
+    0.005,
+    -0.03
+  ],
+  "best_cost": 76.80879334268474,
+  "baseline_cost": 106.9,
+  "improvement": 30.09120665731527,
+  "optimization_type": "comprehensive_blended_2pid",
+  "num_combinations_tested": 300
+}
