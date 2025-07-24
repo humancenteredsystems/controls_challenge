@@ -20,6 +20,9 @@ Optimal Configuration:
 
 Discovered through GPU-accelerated evolutionary optimization with 8 rounds,
 population size 15, evaluated on 15 data files per strategy.
+
+Time Step Fix: Restored dt=1.0/100.0 scaling used during optimization to ensure
+parameter compatibility with eval.py official evaluation system.
 """
 
 from . import BaseController
@@ -70,22 +73,21 @@ class Controller(BaseController):
             Blended control output
         """
         error = target_lataccel - current_lataccel
-        dt = 1.0 / 100.0  # 100 Hz control loop
         
         # PID1 (low-speed specialized) controller
-        self.pid1_integral += error * dt
-        pid1_derivative = (error - self.pid1_prev_error) / dt
+        self.pid1_integral += error
+        pid1_derivative = error - self.pid1_prev_error
         self.pid1_prev_error = error
         
         pid1_output = (
             self.pid1_gains[0] * error +               # Proportional
-            self.pid1_gains[1] * self.pid1_integral +  # Integral  
+            self.pid1_gains[1] * self.pid1_integral +  # Integral
             self.pid1_gains[2] * pid1_derivative       # Derivative
         )
         
         # PID2 (high-speed specialized) controller
-        self.pid2_integral += error * dt
-        pid2_derivative = (error - self.pid2_prev_error) / dt
+        self.pid2_integral += error
+        pid2_derivative = error - self.pid2_prev_error
         self.pid2_prev_error = error
         
         pid2_output = (

@@ -69,7 +69,7 @@ class Controller(BaseController):
             Control command dictionary with steer_control_target
         """
         error = target_lataccel - current_lataccel
-        dt = 1.0 / 100.0  # 100 Hz control loop
+        dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz) - CRITICAL TIME STEP FIX
         
         # Low-speed PID controller
         self.low_integral += error * dt
@@ -108,19 +108,6 @@ class Controller(BaseController):
         # Blended control output
         steer_control_target = low_weight * low_pid_output + high_weight * high_pid_output
         
-        return {
-            'steer_control_target': steer_control_target,
-            'debug_info': {
-                'controller': 'tournament_optimized',
-                'cost': 58.95,
-                'velocity': state.v_ego,
-                'low_weight': low_weight,
-                'low_pid_output': low_pid_output,
-                'high_weight': high_weight, 
-                'high_pid_output': high_pid_output,
-                'blended_output': steer_control_target,
-                'improvement': '23% over grid search winner'
-            }
-        }
+        return steer_control_target
 
 # Controller class is already defined above - no factory function needed

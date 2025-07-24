@@ -26,8 +26,9 @@ class SpecializedPID:
         self.prev_error = 0
     
     def update(self, error):
-        self.error_integral += error
-        error_diff = error - self.prev_error
+        dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz) - CRITICAL TIME STEP FIX
+        self.error_integral += error * dt
+        error_diff = (error - self.prev_error) / dt
         self.prev_error = error
         return self.p * error + self.i * self.error_integral + self.d * error_diff
 
