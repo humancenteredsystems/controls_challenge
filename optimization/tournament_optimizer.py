@@ -29,36 +29,61 @@ class ParameterSet:
         self.rounds_survived: int = 0
         self.status: str = "active"
 
+def load_champions_from_file(file_path: str, n: int) -> List[Dict]:
+    """Load champions from either Stage 1 or Tournament archive format"""
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    
+    # Detect format and extract champions
+    if 'all_results' in data:
+        # Stage 1 format: blended_2pid_comprehensive_results.json
+        print(f"📊 Detected Stage 1 format: {file_path}")
+        candidates = data['all_results']
+        # Sort by avg_total_cost (direct field)
+        champions = sorted(
+            [c for c in candidates if c.get('avg_total_cost', float('inf')) != float('inf')],
+            key=lambda x: x.get('avg_total_cost', float('inf'))
+        )[:n//2]
+        
+    elif 'archive' in data:
+        # Tournament format: tournament_archive.json
+        print(f"🏆 Detected Tournament format: {file_path}")
+        candidates = data['archive']
+        # Sort by stats.avg_total_cost (nested field)
+        champions = sorted(
+            [c for c in candidates if c.get('stats', {}).get('avg_total_cost', float('inf')) != float('inf')],
+            key=lambda x: x.get('stats', {}).get('avg_total_cost', float('inf'))
+        )[:n//2]
+        
+    else:
+        raise ValueError(f"Unknown format in {file_path}. Expected 'all_results' or 'archive' key.")
+    
+    return champions
+
+def extract_gains_from_champion(champion: Dict) -> tuple:
+    """Extract low_gains and high_gains from either format"""
+    return champion['low_gains'], champion['high_gains']
+
 def initialize_population(n: int, seed_from_archive: Optional[str] = None) -> List[ParameterSet]:
     """Generate initial population, optionally seeding best performers from archive."""
     population: List[ParameterSet] = []
     
-    # Seed with archive champions if provided
+    # Seed with champions if provided (supports both Stage 1 and Tournament formats)
     if seed_from_archive and Path(seed_from_archive).exists():
         try:
-            with open(seed_from_archive, 'r') as f:
-                archive_data = json.load(f)
-            
-            # Extract archive list from the JSON structure
-            archive_list = archive_data.get('archive', [])
-            
-            # Sort by avg_cost, take top half of population as champions
-            champions = sorted(
-                [ps for ps in archive_list if ps.get('stats', {}).get('avg_total_cost') != float('inf')],
-                key=lambda x: x.get('stats', {}).get('avg_total_cost', float('inf'))
-            )[:n//2]
-            
-            print(f"Seeding {len(champions)} champions from {seed_from_archive}")
+            champions = load_champions_from_file(seed_from_archive, n)
+            print(f"✅ Seeding {len(champions)} champions from {seed_from_archive}")
             
             for i, champ in enumerate(champions):
-                ps = ParameterSet(champ['low_gains'], champ['high_gains'])
+                low_gains, high_gains = extract_gains_from_champion(champ)
+                ps = ParameterSet(low_gains, high_gains)
                 ps.id = f"champion_{i}"
                 ps.rounds_survived = 0  # Reset for new tournament
                 population.append(ps)
                 
         except Exception as e:
-            print(f"Failed to load archive {seed_from_archive}: {e}")
-            print("Falling back to random initialization")
+            print(f"❌ Failed to load archive {seed_from_archive}: {e}")
+            print("🔄 Falling back to random initialization")
     
     # Fill remaining slots with random generation
     np.random.seed(42)  # For reproducible results
