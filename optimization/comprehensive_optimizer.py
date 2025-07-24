@@ -118,7 +118,7 @@ class ComprehensiveOptimizer:
                                    max_files: int = 25) -> Dict[str, float]:
         """Test a single controller combination with enhanced stability"""
         
-        # Create temporary controller file
+        # Create temporary controller file with corrected PID implementation
         controller_content = f'''from . import BaseController
 
 class SpecializedPID:
@@ -128,8 +128,9 @@ class SpecializedPID:
         self.prev_error = 0
     
     def update(self, error):
-        self.error_integral += error
-        error_diff = error - self.prev_error
+        dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz) - CRITICAL FOR eval.py
+        self.error_integral += error * dt
+        error_diff = (error - self.prev_error) / dt
         self.prev_error = error
         return self.p * error + self.i * self.error_integral + self.d * error_diff
 

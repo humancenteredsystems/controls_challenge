@@ -108,18 +108,8 @@ class Blended2PIDOptimizer:
         # Create temporary blended 2-PID controller file
         controller_content = f'''from . import BaseController
 
-class SpecializedPID:
-    def __init__(self, p, i, d):
-        self.p, self.i, self.d = p, i, d
-        self.error_integral = 0
-        self.prev_error = 0
-    
-    def update(self, error):
-        dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz)
-        self.error_integral += error * dt
-        error_diff = (error - self.prev_error) / dt
-        self.prev_error = error
-        return self.p * error + self.i * self.error_integral + self.d * error_diff
+# Import shared PID implementation for consistency
+from controllers.shared_pid import SpecializedPID
 
 class Controller(BaseController):
     def __init__(self):

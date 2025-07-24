@@ -1,29 +1,10 @@
 from . import BaseController
+from .shared_pid import SpecializedPID
 import onnxruntime as ort
 import numpy as np
 import json
 import os
 from pathlib import Path
-
-class SpecializedPID:
-    """A PID controller with configurable gains - reused from blended_2pid.py"""
-    def __init__(self, p, i, d, name=""):
-        self.p = p
-        self.i = i
-        self.d = d
-        self.name = name
-        self.error_integral = 0
-        self.prev_error = 0
-    
-    def update(self, error):
-        self.error_integral += error
-        error_diff = error - self.prev_error
-        self.prev_error = error
-        return self.p * error + self.i * self.error_integral + self.d * error_diff
-    
-    def reset(self):
-        self.error_integral = 0
-        self.prev_error = 0
 
 class Controller(BaseController):
     """
