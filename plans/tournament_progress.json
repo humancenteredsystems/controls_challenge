@@ -3,30 +3,15 @@
     {
       "round": 1,
       "elites": [
-        "1812ce7d-531e-45c7-b097-42ec6e2c1973"
+        "c2306022-c99e-43f2-8357-a62e7f879dbc"
       ],
       "revived": [
-        "4de12332-bdfd-4f69-be03-f1ccd8fb27f8"
+        "86f907e5-67ef-430f-b99a-77b02fa2b43a"
       ],
       "new": [
-        "d95e4c96-d0e4-4fbc-948d-8fadc44bb002",
-        "3becff9e-9f09-48bf-9789-fb4f9f0ee0b3"
+        "00f2d48b-a1a4-41e3-b763-c550f110cf87"
       ],
-      "best_cost": 12254.611399533382
-    },
-    {
-      "round": 2,
-      "elites": [
-        "d95e4c96-d0e4-4fbc-948d-8fadc44bb002"
-      ],
-      "revived": [
-        "4de12332-bdfd-4f69-be03-f1ccd8fb27f8"
-      ],
-      "new": [
-        "30d61ff7-7021-496f-9f8a-d03156068a2d",
-        "6148b8da-bfe9-4034-b0ae-2ae0d52950cf"
-      ],
-      "best_cost": 10676.336080617797
+      "best_cost": 9715.298623767314
     }
   ]
 }

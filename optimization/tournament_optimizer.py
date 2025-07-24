@@ -119,8 +119,8 @@ def cleanup_controllers(prefix: str = "temp_") -> None:
         except:
             pass
 
-def evaluate(ps: ParameterSet, data_files: List[str], model_path: str, max_files: int) -> None:
-    """Evaluate a ParameterSet and fill its stats."""
+def evaluate(ps: ParameterSet, data_files: List[str], model_path_or_instance, max_files: int) -> None:
+    """Evaluate a ParameterSet and fill its stats. Accepts either model path or model instance for GPU optimization."""
     import sys
     
     total_costs: List[float] = []
@@ -133,7 +133,7 @@ def evaluate(ps: ParameterSet, data_files: List[str], model_path: str, max_files
     
     try:
         for file in data_files[:max_files]:
-            cost, _, _ = run_rollout(file, mod, model_path, debug=False)
+            cost, _, _ = run_rollout(file, mod, model_path_or_instance, debug=False)
             total_costs.append(cost["total_cost"])
     finally:
         cleanup_controllers(prefix=f"temp_{ps.id.replace('-', '')}")
@@ -156,13 +156,20 @@ def evaluate(ps: ParameterSet, data_files: List[str], model_path: str, max_files
 def run_tournament(data_files: List[str], model_path: str, rounds: int,
                    pop_size: int, elite_pct: float, revive_pct: float,
                    max_files: int, perturb_scale: float) -> None:
-    """Execute the tournament optimization loop."""
+    """Execute the tournament optimization loop with GPU optimization."""
+    # Create model instance once for GPU optimization
+    from tinyphysics import TinyPhysicsModel
+    model = TinyPhysicsModel(model_path, debug=False)
+    providers = model.ort_session.get_providers()
+    gpu_status = 'GPU ENABLED' if 'CUDAExecutionProvider' in providers else 'CPU FALLBACK'
+    print(f"Tournament optimizer: {gpu_status}")
+    
     population = initialize_population(pop_size)
     archive: List[ParameterSet] = population.copy()
     summary: List[Dict[str, Any]] = []
     for r in range(1, rounds + 1):
         for ps in population:
-            evaluate(ps, data_files, model_path, max_files)
+            evaluate(ps, data_files, model, max_files)  # Use model instance instead of path
         elites = select_elites(population, elite_pct)
         revived = revival_lottery(archive, revive_pct, pop_size)
         best = min(elites, key=lambda ps: ps.stats["avg_total_cost"])

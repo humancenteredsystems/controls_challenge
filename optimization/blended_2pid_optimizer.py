@@ -21,9 +21,20 @@ class Blended2PIDOptimizer:
     
     def __init__(self, model_path: str):
         self.model_path = model_path
+        self.model_instance = None            # Add model caching for GPU optimization
         self.results = []
         self.best_cost = float('inf')
         self.best_params = None
+    
+    def _get_model_instance(self):
+        """Lazy model creation for GPU optimization - create once, reuse many times"""
+        if self.model_instance is None:
+            from tinyphysics import TinyPhysicsModel
+            self.model_instance = TinyPhysicsModel(self.model_path, debug=False)
+            providers = self.model_instance.ort_session.get_providers()
+            gpu_status = 'GPU ENABLED' if 'CUDAExecutionProvider' in providers else 'CPU FALLBACK'
+            print(f"Blended 2-PID optimizer: {gpu_status}")
+        return self.model_instance
         
     def define_comprehensive_search_space(self, num_combinations: int = 250) -> List[Tuple[List[float], List[float]]]:
         """Define a comprehensive parameter search space for 2-PID controllers"""
@@ -154,7 +165,8 @@ class Controller(BaseController):
         
         for data_file in data_files[:max_files]:
             try:
-                cost, _, _ = run_rollout(data_file, controller_name, self.model_path, debug=False)
+                model = self._get_model_instance()  # Get cached model instance
+                cost, _, _ = run_rollout(data_file, controller_name, model, debug=False)
                 total_costs.append(cost['total_cost'])
                 successful_tests += 1
             except Exception as e:
