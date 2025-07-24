@@ -218,7 +218,7 @@ def evaluate_blending_strategy(strategy_params, pid1_params, pid2_params, data_f
     
     return total_cost / num_evaluations if num_evaluations > 0 else 1000
 
-def generate_strategy_population(pop_size=20):
+def generate_strategy_population(pop_size=20, generation=0):
     """Generate population of blending strategies"""
     
     population = []
@@ -232,7 +232,7 @@ def generate_strategy_population(pop_size=20):
                 'speed_threshold': random.uniform(25, 50),
                 'low_speed_weight': random.uniform(0.6, 0.9),
                 'high_speed_weight': random.uniform(0.1, 0.4),
-                'id': f'thresh_{i:02d}'
+                'id': f'thresh_{i:02d}_g{generation}'
             }
         elif strategy_type == 'linear_speed':
             min_speed = random.uniform(5, 20)
@@ -243,17 +243,18 @@ def generate_strategy_population(pop_size=20):
                 'max_speed': max_speed,
                 'min_weight': random.uniform(0.7, 0.95),
                 'max_weight': random.uniform(0.05, 0.3),
-                'id': f'linear_{i:02d}'
+                'id': f'linear_{i:02d}_g{generation}'
             }
         else:  # error_adaptive
             strategy = {
                 'type': 'error_adaptive',
                 'speed_threshold': random.uniform(30, 45),
                 'error_sensitivity': random.uniform(0.1, 0.5),
-                'id': f'adaptive_{i:02d}'
+                'id': f'adaptive_{i:02d}_g{generation}'
             }
         
         strategy['cost'] = float('inf')
+        strategy['generation'] = generation
         population.append(strategy)
     
     return population
@@ -277,7 +278,7 @@ def run_simple_blender_optimization(archive_path, data_files, model_path, rounds
     print(f"  PID2 (high-speed): P={pid2_params[0]:.3f}, I={pid2_params[1]:.3f}, D={pid2_params[2]:.3f}")
     
     # Generate initial population of blending strategies
-    population = generate_strategy_population(pop_size)
+    population = generate_strategy_population(pop_size, generation=0)
     
     print(f"\nStarting blender optimization:")
     print(f"  - {rounds} rounds")
@@ -311,20 +312,26 @@ def run_simple_blender_optimization(archive_path, data_files, model_path, rounds
         # Find best in this round
         round_best = min(population, key=lambda x: x['cost'])
         
+        print(f"  Round {round_num} best cost: {round_best['cost']:.2f} (strategy: {round_best['id']})")
+        
         if round_best['cost'] < best_ever_cost:
             best_ever_cost = round_best['cost']
             best_ever_strategy = round_best.copy()
             
-            print(f"🎉 New best strategy: {best_ever_cost:.2f}")
+            print(f"🎉 New overall best strategy: {best_ever_cost:.2f}")
             print(f"   Type: {best_ever_strategy['type']}")
-            print(f"   Params: {best_ever_strategy}")
+            print(f"   ID: {best_ever_strategy['id']}")
+        
+        print(f"  Current total_cost: {best_ever_cost:.2f}")
         
         # Evolution for next round (simple mutation)
         if round_num < rounds:
-            population = evolve_strategies(population)
+            population = evolve_strategies(population, generation=round_num + 1)
             print(f"  Round {round_num} complete: strategies evolved")
         else:
             print(f"  Round {round_num} complete: final round")
+        
+        print("-" * 40)
     
     print()
     print("🏆 Simple Blender Optimization Complete!")
@@ -354,7 +361,7 @@ def run_simple_blender_optimization(archive_path, data_files, model_path, rounds
     
     return best_ever_strategy
 
-def evolve_strategies(population):
+def evolve_strategies(population, generation=1):
     """Evolve strategies for next generation"""
     
     # Sort by cost
@@ -370,18 +377,27 @@ def evolve_strategies(population):
         parent = random.choice(population[:len(population)//2])
         
         # Mutate
-        child = mutate_strategy(parent)
+        child = mutate_strategy(parent, generation)
         child['cost'] = float('inf')  # Will be evaluated
         
         new_population.append(child)
     
     return new_population
 
-def mutate_strategy(parent):
+def mutate_strategy(parent, generation=1):
     """Create mutated version of strategy"""
     
     child = parent.copy()
-    child['id'] = parent['id'] + '_m'
+    # Generate new ID based on type and generation instead of appending '_m'
+    strategy_type = parent['type']
+    if strategy_type == 'speed_threshold':
+        child['id'] = f'thresh_mut_{generation}_{random.randint(1000, 9999)}'
+    elif strategy_type == 'linear_speed':
+        child['id'] = f'linear_mut_{generation}_{random.randint(1000, 9999)}'
+    else:  # error_adaptive
+        child['id'] = f'adaptive_mut_{generation}_{random.randint(1000, 9999)}'
+    
+    child['generation'] = generation
     
     if parent['type'] == 'speed_threshold':
         # Mutate threshold and weights

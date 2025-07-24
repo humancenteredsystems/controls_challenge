@@ -237,13 +237,9 @@ def get_available_controllers():
   return [f.stem for f in Path('controllers').iterdir() if f.is_file() and f.suffix == '.py' and f.stem != '__init__']
 
 
-def run_rollout(data_path, controller_type, model_path_or_instance, debug=False):
-  """Run rollout with either model path (string) or model instance for GPU optimization"""
-  # Support both model path and model instance for backward compatibility
-  if hasattr(model_path_or_instance, 'ort_session'):  # It's a model instance
-    tinyphysicsmodel = model_path_or_instance
-  else:  # It's a path string (backward compatible)
-    tinyphysicsmodel = TinyPhysicsModel(model_path_or_instance, debug=debug)
+def run_rollout(data_path, controller_type, model_path, debug=False):
+  """Run rollout with model path for eval.py compatibility"""
+  tinyphysicsmodel = TinyPhysicsModel(model_path, debug=debug)
   
   controller = importlib.import_module(f'controllers.{controller_type}').Controller()
   sim = TinyPhysicsSimulator(tinyphysicsmodel, str(data_path), controller=controller, debug=debug)
