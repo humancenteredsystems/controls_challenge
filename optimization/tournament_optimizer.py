@@ -6,7 +6,16 @@ import numpy as np
 import json
 from pathlib import Path
 import argparse
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+import sys
+import os
+
+# Add the parent directory to path to find tinyphysics
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 from tinyphysics import run_rollout
 from optimization import generate_blended_controller
 
@@ -20,12 +29,42 @@ class ParameterSet:
         self.rounds_survived: int = 0
         self.status: str = "active"
 
-def initialize_population(n: int) -> List[ParameterSet]:
-    """Generate initial population using proven parameter ranges from blended_2pid_optimizer."""
+def initialize_population(n: int, seed_from_archive: Optional[str] = None) -> List[ParameterSet]:
+    """Generate initial population, optionally seeding best performers from archive."""
     population: List[ParameterSet] = []
-    np.random.seed(42)  # For reproducible results
     
-    for _ in range(n):
+    # Seed with archive champions if provided
+    if seed_from_archive and Path(seed_from_archive).exists():
+        try:
+            with open(seed_from_archive, 'r') as f:
+                archive_data = json.load(f)
+            
+            # Extract archive list from the JSON structure
+            archive_list = archive_data.get('archive', [])
+            
+            # Sort by avg_cost, take top half of population as champions
+            champions = sorted(
+                [ps for ps in archive_list if ps.get('stats', {}).get('avg_total_cost') != float('inf')],
+                key=lambda x: x.get('stats', {}).get('avg_total_cost', float('inf'))
+            )[:n//2]
+            
+            print(f"Seeding {len(champions)} champions from {seed_from_archive}")
+            
+            for i, champ in enumerate(champions):
+                ps = ParameterSet(champ['low_gains'], champ['high_gains'])
+                ps.id = f"champion_{i}"
+                ps.rounds_survived = 0  # Reset for new tournament
+                population.append(ps)
+                
+        except Exception as e:
+            print(f"Failed to load archive {seed_from_archive}: {e}")
+            print("Falling back to random initialization")
+    
+    # Fill remaining slots with random generation
+    np.random.seed(42)  # For reproducible results
+    remaining = n - len(population)
+    
+    for _ in range(remaining):
         # Use EXACT same ranges that achieved 76.81 cost in blended_2pid_optimizer
         low_gains = list(np.random.uniform([0.25, 0.01, -0.25], [0.6, 0.12, -0.05]))
         high_gains = list(np.random.uniform([0.15, 0.005, -0.15], [0.4, 0.08, -0.03]))
@@ -35,6 +74,7 @@ def initialize_population(n: int) -> List[ParameterSet]:
         high_gains = [round(g, 3) for g in high_gains]
         
         population.append(ParameterSet(low_gains, high_gains))
+    
     return population
 
 def select_elites(population: List[ParameterSet], elite_pct: float) -> List[ParameterSet]:
@@ -156,7 +196,7 @@ def evaluate(ps: ParameterSet, data_files: List[str], model_path_or_instance, ma
 
 def run_tournament(data_files: List[str], model_path: str, rounds: int,
                    pop_size: int, elite_pct: float, revive_pct: float,
-                   max_files: int, perturb_scale: float) -> None:
+                   max_files: int, perturb_scale: float, seed_from_archive: Optional[str] = None) -> None:
     """Execute the tournament optimization loop with GPU optimization."""
     # Create model instance once for GPU optimization
     from tinyphysics import TinyPhysicsModel
@@ -165,7 +205,7 @@ def run_tournament(data_files: List[str], model_path: str, rounds: int,
     gpu_status = 'GPU ENABLED' if 'CUDAExecutionProvider' in providers else 'CPU FALLBACK'
     print(f"Tournament optimizer: {gpu_status}")
     
-    population = initialize_population(pop_size)
+    population = initialize_population(pop_size, seed_from_archive)
     archive: List[ParameterSet] = population.copy()
     summary: List[Dict[str, Any]] = []
     best_cost = float('inf')
@@ -262,6 +302,7 @@ def main():
     parser.add_argument("--revive_pct", type=float, default=0.1, help="Revival percentage")
     parser.add_argument("--max_files", type=int, default=25, help="Max files per evaluation")
     parser.add_argument("--perturb_scale", type=float, default=0.05, help="Perturbation scale")
+    parser.add_argument("--seed_from_archive", type=str, default=None, help="Archive file to seed champions from")
     
     args = parser.parse_args()
     
@@ -269,9 +310,15 @@ def main():
     model_path = str(base_dir / "models" / "tinyphysics.onnx")
     data_dir = base_dir / "data"
     
-    # Get data files
-    data_files = [str(f) for f in sorted(data_dir.glob("*.csv"))[:50]]
-    print(f"Found {len(data_files)} data files")
+    # Get data files - use all available files if no archive seeding, limit for initial tournament
+    if args.seed_from_archive:
+        # Tournament #2: Use all available data files for expanded validation
+        data_files = [str(f) for f in sorted(data_dir.glob("*.csv"))]
+        print(f"Tournament #2: Found {len(data_files)} data files (expanded dataset)")
+    else:
+        # Tournament #1: Use subset for initial optimization
+        data_files = [str(f) for f in sorted(data_dir.glob("*.csv"))[:50]]
+        print(f"Tournament #1: Found {len(data_files)} data files (initial dataset)")
     
     if not data_files:
         print("No data files found!")
@@ -285,7 +332,8 @@ def main():
         elite_pct=args.elite_pct,
         revive_pct=args.revive_pct,
         max_files=args.max_files,
-        perturb_scale=args.perturb_scale
+        perturb_scale=args.perturb_scale,
+        seed_from_archive=args.seed_from_archive
     )
 
 if __name__ == "__main__":

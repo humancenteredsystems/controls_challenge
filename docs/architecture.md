@@ -137,29 +137,71 @@ class Blended2PIDOptimizer:
 - **GPU Optimization:** Single model instance reused across all evaluations
 - **Resource Usage:** ~250-1000 parameter combinations typical
 
-#### 3.3.2 Tournament Optimizer
+#### 3.3.2 Tournament Optimizer with Archive Intelligence
 
 **Location:** [`optimization/tournament_optimizer.py`](../optimization/tournament_optimizer.py)
 
-**Purpose:** Evolutionary optimization using tournament selection with elite preservation and revival mechanisms.
+**Purpose:** Evolutionary optimization using tournament selection with elite preservation, revival mechanisms, and intelligent archive seeding for two-stage optimization.
 
-**Architecture:**
+**Core Architecture:**
 ```python
-def run_tournament(data_files, model_path, rounds, pop_size, elite_pct, revive_pct, max_files, perturb_scale):
-    """Execute tournament optimization with single GPU session"""
+def run_tournament(data_files, model_path, rounds, pop_size, elite_pct, revive_pct, max_files, perturb_scale, seed_from_archive=None):
+    """Execute tournament optimization with single GPU session and optional archive seeding"""
     # Create model instance once for entire tournament
     model = TinyPhysicsModel(model_path, debug=False)
+    
+    # Initialize population with archive intelligence
+    population = initialize_population(pop_size, seed_from_archive=seed_from_archive)
     
     for r in range(1, rounds + 1):
         for ps in population:
             evaluate(ps, data_files, model, max_files)  # Reuse model instance
 ```
 
+**Archive Intelligence System:**
+- **Archive Persistence:** All evaluated parameter sets saved to `plans/tournament_archive.json`
+- **Performance Tracking:** Cost statistics, evaluation counts, and metadata per parameter set
+- **Intelligent Seeding:** Tournament #2 can seed population from top 50% performers of Tournament #1
+- **Data Expansion Support:** Different dataset sizes between tournament stages for robust validation
+
+**Archive Format:**
+```json
+{
+  "parameter_hash": {
+    "parameters": {"kp_low": 1.0, "ki_low": 0.1, ...},
+    "evaluations": [91.2, 87.5, 92.8],
+    "stats": {
+      "mean_cost": 90.5,
+      "std_cost": 2.65,
+      "min_cost": 87.5,
+      "evaluation_count": 3
+    }
+  }
+}
+```
+
+**Two-Stage Tournament Architecture:**
+```
+Tournament #1 (Initial Discovery)
+├── Limited dataset (30 files)
+├── Population: 20 individuals
+├── Rounds: 10 generations
+└── Output: Archive with performance data
+
+Tournament #2 (Champion Validation)
+├── Expanded dataset (50+ files)
+├── Population: Seeded from top Archive performers
+├── Rounds: 10 generations
+└── Output: Validated optimal parameters
+```
+
 **Performance Characteristics:**
-- **Population Management:** Dynamic population with elite preservation
+- **Population Management:** Dynamic population with elite preservation and archive seeding
 - **Selection Pressure:** Tournament-based selection with configurable parameters
+- **Archive Intelligence:** Leverages historical performance data for improved starting populations
 - **Resource Efficiency:** Single GPU session for entire tournament run
 - **Scalability:** Supports large population sizes with minimal GPU overhead
+- **Validation Robustness:** Two-stage approach provides enhanced parameter validation
 
 #### 3.3.3 Comprehensive Optimizer
 
@@ -213,7 +255,7 @@ Optimization Complete → Cleanup GPU Session → Resource Deallocation
 
 ### 5.1 Component Interactions
 
-**Optimization Flow:**
+**Standard Optimization Flow:**
 ```
 1. Optimizer → Initialize TinyPhysicsModel (GPU Session Created)
 2. Optimizer → Generate Parameter Combinations
@@ -225,6 +267,40 @@ Optimization Complete → Cleanup GPU Session → Resource Deallocation
    e. Simulator → Return Cost Metrics
 4. Optimizer → Statistical Analysis and Results
 5. Optimizer → Model Cleanup (GPU Session Destroyed)
+```
+
+**Two-Stage Tournament Optimization Flow:**
+```
+Tournament #1 (Discovery Phase):
+1. Tournament Optimizer → Initialize TinyPhysicsModel (GPU Session Created)
+2. Tournament Optimizer → Initialize Population (Random Parameters)
+3. Tournament Optimizer → Load Archive (if exists)
+4. For Each Round:
+   a. Tournament Optimizer → Evaluate Population on Limited Dataset
+   b. Tournament Optimizer → Update Archive with Results
+   c. Tournament Optimizer → Apply Selection, Elite Preservation, Revival
+5. Tournament Optimizer → Save Archive to plans/tournament_archive.json
+6. Tournament Optimizer → Model Cleanup (GPU Session Destroyed)
+
+Tournament #2 (Validation Phase):
+1. Tournament Optimizer → Initialize TinyPhysicsModel (GPU Session Created)
+2. Tournament Optimizer → Load Archive from plans/tournament_archive.json
+3. Tournament Optimizer → Seed Population from Top 50% Archive Performers
+4. For Each Round:
+   a. Tournament Optimizer → Evaluate Population on Expanded Dataset
+   b. Tournament Optimizer → Update Archive with Enhanced Results
+   c. Tournament Optimizer → Apply Selection, Elite Preservation, Revival
+5. Tournament Optimizer → Save Final Archive with Validation Results
+6. Tournament Optimizer → Model Cleanup (GPU Session Destroyed)
+```
+
+**Archive Intelligence Data Flow:**
+```
+Parameter Evaluation → Cost Metrics → Archive Update → Performance Statistics
+        ↑                 ↑               ↑                    ↑
+   Controller Gen.    GPU Inference   JSON Storage      Statistical Analysis
+        ↓                 ↓               ↓                    ↓
+Population Seeding ← Archive Loading ← File I/O ← Performance Ranking
 ```
 
 **Data Flow:**

@@ -1,23 +1,4 @@
-"""
-Shared utilities for optimization modules
-"""
-from typing import List
-
-def generate_blended_controller(low_gains: List[float], high_gains: List[float]) -> str:
-    """
-    Generate blended 2-PID controller code using proven template from blended_2pid_optimizer.
-    
-    This uses the exact same controller architecture that achieved 76.81 cost,
-    ensuring consistency across all optimizers.
-    
-    Args:
-        low_gains: [P, I, D] gains for low-speed PID
-        high_gains: [P, I, D] gains for high-speed PID
-        
-    Returns:
-        Complete controller code as string
-    """
-    return f'''from controllers import BaseController
+from controllers import BaseController
 
 class SpecializedPID:
     def __init__(self, p, i, d):
@@ -33,8 +14,8 @@ class SpecializedPID:
 
 class Controller(BaseController):
     def __init__(self):
-        self.low_speed_pid = SpecializedPID({low_gains[0]}, {low_gains[1]}, {low_gains[2]})
-        self.high_speed_pid = SpecializedPID({high_gains[0]}, {high_gains[1]}, {high_gains[2]})
+        self.low_speed_pid = SpecializedPID(0.25, 0.12, -0.092)
+        self.high_speed_pid = SpecializedPID(0.203, 0.08, -0.098)
         
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         error = target_lataccel - current_lataccel
@@ -55,4 +36,3 @@ class Controller(BaseController):
                          weights[1] * high_output)
         
         return blended_output
-'''
