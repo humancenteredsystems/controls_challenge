@@ -227,8 +227,18 @@ def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json")
     with open(archive_path, 'r') as f:
         archive = json.load(f)
     
+    # Filter performers with valid stats (same robust handling as training data gen)
+    valid_performers = []
+    for p in archive['archive']:
+        if 'stats' in p and 'avg_total_cost' in p['stats']:
+            valid_performers.append(p)
+    
+    if len(valid_performers) == 0:
+        # Fallback to default parameters if no valid performers
+        return [([0.25, 0.12, -0.05], [0.15, 0.08, -0.15])]
+    
     # Get top 5 performers
-    top_performers = sorted(archive['archive'], 
+    top_performers = sorted(valid_performers,
                            key=lambda x: x['stats']['avg_total_cost'])[:5]
     
     pid_pairs = []

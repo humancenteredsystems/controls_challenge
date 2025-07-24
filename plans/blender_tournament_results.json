@@ -1,0 +1,17 @@
+{
+  "best_architecture": {
+    "hidden_sizes": [
+      16,
+      16
+    ],
+    "dropout_rate": 0.05,
+    "id": "cb2d1391",
+    "cost": 1000.0
+  },
+  "best_cost": 1000.0,
+  "tournament_config": {
+    "rounds": 10,
+    "pop_size": 15,
+    "max_files": 20
+  }
+}
