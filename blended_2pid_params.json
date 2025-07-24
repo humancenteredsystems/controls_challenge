@@ -9,9 +9,9 @@
     0.005,
     -0.03
   ],
-  "best_cost": 76.80879334268474,
+  "best_cost": 76.8050092470897,
   "baseline_cost": 106.9,
-  "improvement": 30.09120665731527,
+  "improvement": 30.094990752910306,
   "optimization_type": "comprehensive_blended_2pid",
   "num_combinations_tested": 300
 }
