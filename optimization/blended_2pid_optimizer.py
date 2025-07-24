@@ -14,7 +14,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tinyphysics import run_rollout
+from tinyphysics_custom import run_rollout
 
 class Blended2PIDOptimizer:
     """Enhanced grid search optimization for blended 2-PID controllers"""
@@ -29,7 +29,7 @@ class Blended2PIDOptimizer:
     def _get_model_instance(self):
         """Lazy model creation for GPU optimization - create once, reuse many times"""
         if self.model_instance is None:
-            from tinyphysics import TinyPhysicsModel
+            from tinyphysics_custom import TinyPhysicsModel
             self.model_instance = TinyPhysicsModel(self.model_path, debug=False)
             providers = self.model_instance.ort_session.get_providers()
             gpu_status = 'GPU ENABLED' if 'CUDAExecutionProvider' in providers else 'CPU FALLBACK'

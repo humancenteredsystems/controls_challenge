@@ -18,7 +18,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from tinyphysics import run_rollout, TinyPhysicsModel
+from tinyphysics_custom import run_rollout, TinyPhysicsModel
 
 def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json"):
     """Get top PID parameter pairs from tournament archive"""

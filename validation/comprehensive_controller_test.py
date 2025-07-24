@@ -22,7 +22,7 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
-from tinyphysics import TinyPhysicsModel
+from tinyphysics_custom import TinyPhysicsModel
 from optimization import generate_blended_controller
 
 def load_tournament_winner():
@@ -83,7 +83,7 @@ def evaluate_controller_performance(model, data_files: List[str], low_gains: Lis
     for i, data_file in enumerate(test_files):
         try:
             # Use the same data loading approach as the working optimizers
-            from tinyphysics import run_rollout
+            from tinyphysics_custom import run_rollout
             result = run_rollout(data_file, controller, model, debug=False)
             
             # run_rollout returns (rollout_dict, target_history, current_history)

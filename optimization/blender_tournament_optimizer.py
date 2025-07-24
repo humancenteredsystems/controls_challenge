@@ -21,7 +21,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from tinyphysics import run_rollout, TinyPhysicsModel
+from tinyphysics_custom import run_rollout, TinyPhysicsModel
 
 def create_training_data_from_archive(archive_path, num_samples=5000):
     """

@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from tinyphysics import run_rollout
+from tinyphysics_custom import run_rollout
 from optimization import generate_blended_controller
 
 class ParameterSet:
@@ -199,7 +199,7 @@ def run_tournament(data_files: List[str], model_path: str, rounds: int,
                    max_files: int, perturb_scale: float, seed_from_archive: Optional[str] = None) -> None:
     """Execute the tournament optimization loop with GPU optimization."""
     # Create model instance once for GPU optimization
-    from tinyphysics import TinyPhysicsModel
+    from tinyphysics_custom import TinyPhysicsModel
     model = TinyPhysicsModel(model_path, debug=False)
     providers = model.ort_session.get_providers()
     gpu_status = 'GPU ENABLED' if 'CUDAExecutionProvider' in providers else 'CPU FALLBACK'
