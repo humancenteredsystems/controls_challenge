@@ -3,10 +3,6 @@ import importlib
 import numpy as np
 import onnxruntime as ort
 import os
-
-# GPU acceleration enabled with CUDA 11.8 + ONNX Runtime 1.17.1 + cuDNN 8
-CUDA_AVAILABLE = True
-print("GPU acceleration ENABLED - using CUDA for 3-5x performance boost")
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -69,29 +65,11 @@ class TinyPhysicsModel:
     options = ort.SessionOptions()
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
-    options.log_severity_level = 3 if not debug else 0
-    
-    # GPU acceleration enabled - use CUDA provider with CPU fallback
-    session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-    
-    if debug:
-        print("Using GPU acceleration with CUDA provider (CPU fallback available)")
-    
-    # Load model and create session with GPU acceleration (CPU fallback)
+    options.log_severity_level = 3
+    provider = 'CPUExecutionProvider'
+
     with open(model_path, "rb") as f:
-      model_bytes = f.read()
-    
-    try:
-      # Create session with GPU provider first, CPU fallback
-      self.ort_session = ort.InferenceSession(model_bytes, options, session_providers)
-      if debug:
-          active_providers = self.ort_session.get_providers()
-          if 'CUDAExecutionProvider' in active_providers:
-              print("SUCCESS: ONNX Runtime session created with GPU acceleration active")
-          else:
-              print("SUCCESS: ONNX Runtime session created with CPU fallback")
-    except Exception as e:
-      raise RuntimeError(f"Failed to create ONNX Runtime session with GPU/CPU providers: {e}")
+      self.ort_session = ort.InferenceSession(f.read(), options, [provider])
 
   def softmax(self, x, axis=-1):
     e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
@@ -203,9 +181,8 @@ class TinyPhysicsSimulator:
     ax.set_ylabel(axis_labels[1])
 
   def compute_cost(self) -> Dict[str, float]:
-    # Compute cost over full segment after control start
-    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:]
-    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:]
+    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
+    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
 
     lat_accel_cost = np.mean((target - pred)**2) * 100
     jerk_cost = np.mean((np.diff(pred) / DEL_T)**2) * 100
@@ -238,9 +215,7 @@ def get_available_controllers():
 
 
 def run_rollout(data_path, controller_type, model_path, debug=False):
-  """Run rollout with model path for eval.py compatibility"""
   tinyphysicsmodel = TinyPhysicsModel(model_path, debug=debug)
-  
   controller = importlib.import_module(f'controllers.{controller_type}').Controller()
   sim = TinyPhysicsSimulator(tinyphysicsmodel, str(data_path), controller=controller, debug=debug)
   return sim.rollout(), sim.target_lataccel_history, sim.current_lataccel_history
@@ -275,7 +250,7 @@ if __name__ == "__main__":
     cost, _, _ = run_rollout(data_path, args.controller, args.model_path, debug=args.debug)
     print(f"\nAverage lataccel_cost: {cost['lataccel_cost']:>6.4}, average jerk_cost: {cost['jerk_cost']:>6.4}, average total_cost: {cost['total_cost']:>6.4}")
   elif data_path.is_dir():
-    run_rollout_partial = partial(run_rollout, controller_type=args.controller, model_path_or_instance=args.model_path, debug=False)
+    run_rollout_partial = partial(run_rollout, controller_type=args.controller, model_path=args.model_path, debug=False)
     files = sorted(data_path.iterdir())[:args.num_segs]
     results = process_map(run_rollout_partial, files, max_workers=16, chunksize=10)
     costs = [result[0] for result in results]
