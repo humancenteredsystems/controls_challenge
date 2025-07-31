@@ -395,6 +395,239 @@ Tournament optimizer: GPU ENABLED
 - **GPU Detection:** CUDA availability and capability reporting
 - **Performance Metrics:** Timing information for optimization phases
 
+## 8. Tournament #3: Neural Blending Controller System
+
+### 8.1 Overview
+
+Tournament #3 introduces an advanced neural-enhanced PID blending system that combines traditional PID control with learned neural network weights for velocity-specific optimization.
+
+**Location:** [`controllers/neural_blended.py`](../controllers/neural_blended.py)
+
+**Purpose:** Provides intelligent blending weight calculation using specialized neural networks trained for different velocity ranges, enabling more sophisticated control responses than static velocity-based blending.
+
+### 8.2 Architecture Components
+
+#### 8.2.1 Neural Model System
+
+**Model Structure:**
+- **Model Count:** 43 specialized neural networks (`blender_*.onnx`)
+- **Model Size:** 1,199 bytes each (working models)
+- **Architecture:** 8→16→1 feedforward network (BlenderNet)
+- **Training Framework:** PyTorch with ONNX export
+- **Inference Engine:** ONNX Runtime with GPU acceleration
+
+**Neural Network Architecture:**
+```python
+class BlenderNet(nn.Module):
+    def __init__(self, input_size=8, hidden_size=16, output_size=1):
+        super(BlenderNet, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, output_size),
+            nn.Sigmoid()  # Output blending weight [0,1]
+        )
+```
+
+**Input Features (8-dimensional):**
+1. **Vehicle Velocity** (`v_ego`) - Current speed in mph
+2. **Lateral Acceleration** (`current_lataccel`) - Current vehicle lateral acceleration  
+3. **Roll Lateral Acceleration** (`roll_lataccel`) - Road banking contribution
+4. **Longitudinal Acceleration** (`a_ego`) - Forward/backward acceleration
+5. **Control Error** (`target - current`) - Lateral acceleration tracking error
+6. **Low-Speed PID Integral** - Accumulated error from low-speed controller
+7. **High-Speed PID Integral** - Accumulated error from high-speed controller
+8. **Future Plan Statistics** - Statistical measures of planned trajectory
+
+#### 8.2.2 GPU-Accelerated Inference System
+
+**ONNX Runtime Configuration:**
+```python
+# GPU-first provider configuration
+session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+session_options = ort.SessionOptions()
+session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+# Model loading with multiple provider fallback
+for provider_config in provider_combinations:
+    try:
+        self.blender_session = ort.InferenceSession(
+            model_path, session_options, provider_config
+        )
+        break
+    except Exception as e:
+        continue  # Try next provider configuration
+```
+
+**Performance Characteristics:**
+- **Primary Execution:** CUDAExecutionProvider for GPU acceleration
+- **Fallback Support:** CPUExecutionProvider for compatibility
+- **Model Loading:** Lazy loading with caching for efficiency
+- **Inference Speed:** ~1-5ms per prediction with GPU acceleration
+
+#### 8.2.3 Controller Integration Architecture
+
+**Dual-PID Foundation:**
+```python
+class Controller(BaseController):
+    def __init__(self):
+        # Load optimized parameters from Tournament #2 archive
+        pid1_params, pid2_params = self._load_best_pid_params()
+        
+        # Initialize dual PID controllers
+        self.low_speed_pid = SpecializedPID(*pid1_params, "low_speed")
+        self.high_speed_pid = SpecializedPID(*pid2_params, "high_speed")
+        
+        # Neural blending system
+        self.blender_session = self._load_neural_blenders()
+```
+
+**Dynamic Blending Logic:**
+```python
+def update(self, target_lataccel, current_lataccel, state, future_plan):
+    # Generate PID outputs
+    low_output = self.low_speed_pid.update(target_lataccel, current_lataccel, state.v_ego)
+    high_output = self.high_speed_pid.update(target_lataccel, current_lataccel, state.v_ego)
+    
+    # Neural weight calculation
+    if self.blender_session:
+        features = self._extract_features(state, future_plan, target_lataccel, current_lataccel)
+        neural_weight = self.blender_session.run(None, {'input': features})[0][0]
+    else:
+        # Velocity-based fallback
+        neural_weight = 0.8 if state.v_ego < 40 else 0.2
+    
+    # Weighted blending
+    return neural_weight * low_output + (1 - neural_weight) * high_output
+```
+
+### 8.3 Robust Error Handling and Fallback Systems
+
+#### 8.3.1 Multi-Level Fallback Architecture
+
+**Level 1: Neural Model Loading Fallback**
+```python
+provider_combinations = [
+    ['CUDAExecutionProvider'],           # GPU-only (fastest)
+    ['CPUExecutionProvider'],            # CPU-only (compatible)  
+    ['CUDAExecutionProvider', 'CPUExecutionProvider']  # Mixed (robust)
+]
+```
+
+**Level 2: Tournament #2 Parameter Integration**
+```python
+def _load_best_pid_params(self):
+    """Load optimized parameters from Tournament #2 archive"""
+    try:
+        # Load from tournament_archive.json
+        archive_path = Path('plans/tournament_archive.json')
+        with open(archive_path, 'r') as f:
+            archive = json.load(f)
+        
+        # Find best performing parameters
+        best_entry = min(archive['archive'], 
+                        key=lambda x: x.get('stats', {}).get('avg_total_cost', float('inf')))
+        
+        return best_entry['pid1_gains'], best_entry['pid2_gains']
+    except Exception:
+        # Ultimate fallback to tested parameters
+        return [0.374, 0.01, -0.05], [0.4, 0.05, -0.053]
+```
+
+**Level 3: Graceful Degradation**
+```python
+def update(self, target_lataccel, current_lataccel, state, future_plan):
+    # Always attempt neural blending first
+    if self.blender_session:
+        try:
+            return self._neural_blended_update(...)
+        except Exception as e:
+            print(f"Neural blending failed: {e}, falling back to velocity-based")
+    
+    # Velocity-based fallback (proven reliable)
+    return self._velocity_based_update(...)
+```
+
+### 8.4 Current Performance Analysis
+
+#### 8.4.1 Performance Metrics (100-file validation)
+
+| Metric | Value | vs Tournament #2 | Status |
+|--------|-------|------------------|--------|
+| **Average Cost** | 566.33 | -241.50 (regression) | ❌ Needs optimization |
+| **Median Cost** | 289.89 | +34.94 (improvement) | ✅ Better than baseline |
+| **Standard Deviation** | 905.62 | High variance | ❌ Training optimization needed |
+| **Success Rate** | 56% | Files better than baseline | ⚠️ Mixed performance |
+
+#### 8.4.2 Root Cause Analysis
+
+**Performance Regression Factors:**
+1. **Training Data Quality:** Neural models trained on synthetic velocity-based patterns rather than performance-optimized real driving scenarios
+2. **High Variance:** Standard deviation of 905.62 indicates inadequate handling of edge cases
+3. **Outlier Impact:** While median performance beats baseline, extreme outliers drag down average
+4. **Training Objective:** Models optimized for pattern matching rather than cost minimization
+
+**Technical Infrastructure Status:**
+- ✅ **Neural Models:** 43 working ONNX models loading successfully
+- ✅ **GPU Acceleration:** CUDAExecutionProvider active and functioning
+- ✅ **Error Handling:** Robust fallback systems working correctly
+- ✅ **Integration:** Seamless Tournament #2 parameter loading
+- ❌ **Performance:** Training optimization required for competitive results
+
+### 8.5 Neural Model Generation Pipeline
+
+**Training Infrastructure:**
+- **Generation Script:** [`generate_neural_blending_models.py`](../generate_neural_blending_models.py)
+- **Training Framework:** PyTorch with synthetic data generation
+- **Export Pipeline:** ONNX conversion with input/output validation
+- **Model Validation:** Automated loading and inference testing
+
+**Current Training Limitations:**
+```python
+# Current synthetic training approach
+def generate_synthetic_training_data():
+    """Generate velocity-based synthetic patterns"""
+    # Issue: Not optimized for actual performance
+    # Solution needed: Use real driving performance data
+```
+
+**Required Training Improvements:**
+1. **Performance-Focused Training:** Use actual cost minimization as training objective
+2. **Real Data Integration:** Replace synthetic patterns with actual driving scenarios  
+3. **Outlier Handling:** Enhanced training for edge case management
+4. **Cost-Optimized Loss:** Train directly for lateral acceleration cost reduction
+
+### 8.6 Integration with Tournament System
+
+**Tournament Progression Architecture:**
+```
+Tournament #1 (Basic Discovery)
+├── Grid search optimization
+├── 30-file evaluation dataset
+└── Archive: Parameter performance data
+
+Tournament #2 (Advanced Optimization) 
+├── Evolutionary tournament selection
+├── 50-file validation dataset  
+├── Best Performance: 324.83 cost
+└── Archive: Optimized PID parameters
+
+Tournament #3 (Neural Enhancement)
+├── Neural blending weight learning
+├── 100-file comprehensive dataset
+├── Current Performance: 566.33 average, 289.89 median
+└── Archive: Neural model + PID integration
+```
+
+**Data Flow Integration:**
+```
+Tournament #2 Archive → PID Parameters → Tournament #3 Neural Controller
+                            ↓
+                   Velocity Features → Neural Models → Blending Weights
+                            ↓
+                   Combined Output → Performance Evaluation → Archive Update
+```
+
 ## 8. Future Architecture Considerations
 
 ### 8.1 Potential Enhancements

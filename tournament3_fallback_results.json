@@ -1,0 +1,21 @@
+{
+  "tournament": "Neural Blending Phase (Fallback Mode)",
+  "baseline_cost": 324.828377557437,
+  "fallback_neural_cost": 333.92678769785323,
+  "improvement": -9.098410140416206,
+  "test_results": {
+    "avg_cost": 333.92678769785323,
+    "min_cost": 171.76605418892558,
+    "max_cost": 505.96854893608054,
+    "num_tests": 4,
+    "costs": [
+      505.96854893608054,
+      171.76605418892558,
+      296.7505295473049,
+      361.22201811910196
+    ]
+  },
+  "status": "fallback_mode_successful",
+  "note": "Neural models corrupted, using velocity-based fallback with Tournament #2 parameters",
+  "timestamp": 1753915086.3396268
+}

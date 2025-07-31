@@ -21,29 +21,62 @@ class Controller(BaseController):
         self.pid1 = SpecializedPID(pid1_params[0], pid1_params[1], pid1_params[2], "PID1")
         self.pid2 = SpecializedPID(pid2_params[0], pid2_params[1], pid2_params[2], "PID2")
         
-        # Load BlenderNet ONNX model
+        # Load BlenderNet ONNX model with robust error handling
+        self.blender_session = None
+        self.blender_model_path = None
+        
         if blender_model_path is None:
             blender_model_path = self._find_blender_model()
         
         if blender_model_path and Path(blender_model_path).exists():
-            # GPU-first session creation (follows tinyphysics.py pattern)
-            session_options = ort.SessionOptions()
-            session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+            # Try to load neural model with comprehensive error handling
+            print(f"Attempting to load neural model: {Path(blender_model_path).name}")
             
-            self.blender_session = ort.InferenceSession(
-                blender_model_path, 
-                sess_options=session_options,
-                providers=session_providers
-            )
+            # Try different provider combinations for maximum compatibility
+            provider_combinations = [
+                ['CUDAExecutionProvider'],
+                ['CPUExecutionProvider'],
+                ['CUDAExecutionProvider', 'CPUExecutionProvider']
+            ]
             
-            print(f"Neural blended controller initialized with GPU acceleration")
-            print(f"  PID1: P={self.pid1.p:.3f}, I={self.pid1.i:.3f}, D={self.pid1.d:.3f}")
-            print(f"  PID2: P={self.pid2.p:.3f}, I={self.pid2.i:.3f}, D={self.pid2.d:.3f}")
-            print(f"  BlenderNet: {blender_model_path}")
+            model_loaded = False
+            for providers in provider_combinations:
+                try:
+                    session_options = ort.SessionOptions()
+                    # Disable optimization to handle potentially corrupted models
+                    session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                    
+                    self.blender_session = ort.InferenceSession(
+                        blender_model_path,
+                        sess_options=session_options,
+                        providers=providers
+                    )
+                    
+                    self.blender_model_path = blender_model_path
+                    model_loaded = True
+                    provider_names = '+'.join(providers)
+                    print(f"✅ Neural model loaded successfully with {provider_names}")
+                    break
+                    
+                except Exception as e:
+                    error_type = type(e).__name__
+                    print(f"⚠️ Failed to load with {'+'.join(providers)}: {error_type}")
+                    continue
+            
+            if model_loaded:
+                print(f"🧠 Neural blended controller initialized")
+                print(f"   PID1: P={self.pid1.p:.3f}, I={self.pid1.i:.3f}, D={self.pid1.d:.3f}")
+                print(f"   PID2: P={self.pid2.p:.3f}, I={self.pid2.i:.3f}, D={self.pid2.d:.3f}")
+                print(f"   BlenderNet: {Path(blender_model_path).name}")
+            else:
+                print(f"❌ All neural model loading attempts failed")
+                print(f"   Falling back to velocity-based blending")
         else:
-            # Fallback to simple blending if no neural model
-            self.blender_session = None
-            print("Warning: No BlenderNet model found, using velocity-based fallback")
+            print("⚠️ No neural model specified or found, using velocity-based fallback")
+        
+        # Always print final configuration
+        blend_type = "Neural" if self.blender_session else "Velocity-based"
+        print(f"🎯 Controller ready: {blend_type} blending mode")
     
     def _load_best_pid_params(self):
         """Load best PID parameters from tournament archive"""
@@ -53,8 +86,12 @@ class Controller(BaseController):
             with open(archive_path, 'r') as f:
                 archive = json.load(f)
             
-            # Get best performer from archive
-            best_combo = min(archive['archive'], key=lambda x: x['stats']['avg_total_cost'])
+            # Get best performer from archive (with safe access)
+            valid_entries = [x for x in archive['archive'] if 'stats' in x and 'avg_total_cost' in x['stats']]
+            if not valid_entries:
+                raise ValueError("No valid archive entries with cost statistics found")
+            
+            best_combo = min(valid_entries, key=lambda x: x['stats']['avg_total_cost'])
             
             pid1_params = best_combo['low_gains']
             pid2_params = best_combo['high_gains']

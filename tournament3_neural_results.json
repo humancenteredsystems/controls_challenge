@@ -1,0 +1,9 @@
+{
+  "tournament": "Neural Blending Phase",
+  "baseline_cost": 324.828377557437,
+  "best_neural_cost": Infinity,
+  "best_neural_model": null,
+  "improvement": -Infinity,
+  "all_results": [],
+  "timestamp": 1753382378.5754213
+}
