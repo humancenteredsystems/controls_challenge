@@ -175,22 +175,80 @@ print(f'Best strategy config: {best_strategy}')
 
 ---
 
-## 📊 STEP 4: Final Validation
+## 🔍 STEP 4: Pre-Submission Validation with eval_custom.py
+
+**Always validate with eval_custom.py before running official eval.py to catch compatibility issues:**
 
 ```bash
-# Test new controller with single file
+# Quick validation (recommended first step)
+python eval_custom.py \
+    --model_path ./models/tinyphysics.onnx \
+    --data_path ./data \
+    --controller neural_blended_champion \
+    --mode quick \
+    --validate-first
+
+# Standard validation (full compatibility check)
+python eval_custom.py \
+    --model_path ./models/tinyphysics.onnx \
+    --data_path ./data \
+    --controller neural_blended_champion \
+    --mode standard \
+    --output pre_submission_results.json
+
+# Minimal validation (compatibility only)
+python eval_custom.py \
+    --model_path ./models/tinyphysics.onnx \
+    --data_path ./data \
+    --controller neural_blended_champion \
+    --mode validate-only
+```
+
+**Expected output for successful validation:**
+```
+🎯 eval_custom.py - Controller Pre-submission Validation
+   Controller: neural_blended_champion
+   Mode: quick
+   
+🔍 Validating controller compatibility: neural_blended_champion
+✅ Controller 'neural_blended_champion' is loadable
+🧪 Testing basic rollout with file: 00000.csv
+✅ Basic rollout successful
+   Sample cost: 45.23
+   Rollout time: 0.125s
+✅ Time step consistency verified (array lengths match)
+✅ Controller compatibility validated successfully
+
+🚀 Running quick evaluation: Fast validation with 10 segments for development testing
+📈 Evaluation Results (quick mode):
+   Test Controller (neural_blended_champion): 42.15
+   Baseline Controller (pid): 58.33
+   ✅ Improvement: 16.18 (27.7%)
+   
+🎉 SUCCESS: Controller ready for eval.py submission!
+```
+
+---
+
+## 📊 STEP 5: Official Final Validation
+
+**Only run eval.py after successful eval_custom.py validation:**
+
+```bash
+# Single file test (quick check)
 python eval.py \
     --model_path ./models/tinyphysics.onnx \
-    --data_path ./data/00000.csv \
-    --test_controller optimized_blender_corrected \
+    --data_path ./data \
+    --num_segs 1 \
+    --test_controller neural_blended_champion \
     --baseline_controller pid
 
-# Full evaluation (if single test looks good)
+# Full official evaluation (for leaderboard submission)
 python eval.py \
     --model_path ./models/tinyphysics.onnx \
     --data_path ./data \
     --num_segs 100 \
-    --test_controller optimized_blender_corrected \
+    --test_controller neural_blended_champion \
     --baseline_controller pid
 ```
 

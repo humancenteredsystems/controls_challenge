@@ -23,12 +23,14 @@ if parent_dir not in sys.path:
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 
-def create_training_data_from_archive(archive_path, num_samples=5000):
+def create_training_data_from_archive(archive_path, data_files, model, num_samples=5000):
     """
     Generate training data for BlenderNet from PID tournament archive
     
     Args:
         archive_path: Path to tournament archive JSON
+        data_files: List of data files for training data generation
+        model: TinyPhysicsModel instance for rollout evaluation
         num_samples: Number of training samples to generate
     
     Returns:
@@ -40,7 +42,7 @@ def create_training_data_from_archive(archive_path, num_samples=5000):
         archive = json.load(f)
     
     # Get top performing PID combinations (top 10)
-    top_performers = sorted(archive['archive'][:20], 
+    top_performers = sorted(archive['archive'][:20],
                            key=lambda x: x['stats']['min_cost'])[:10]
     
     print(f"Using top {len(top_performers)} PID combinations for training data")
@@ -55,8 +57,9 @@ def create_training_data_from_archive(archive_path, num_samples=5000):
         print(f"  Processing combo {i+1}/{len(top_performers)}: cost={combo['stats']['min_cost']:.2f}")
         
         # Generate samples for this PID combination
-        samples = generate_samples_for_pid_combo(pid1_params, pid2_params, 
-                                               num_samples // len(top_performers))
+        samples = generate_samples_for_pid_combo(pid1_params, pid2_params,
+                                               num_samples // len(top_performers),
+                                               data_files, model)
         training_samples.extend(samples)
     
     print(f"Generated {len(training_samples)} training samples")
@@ -68,47 +71,90 @@ def create_training_data_from_archive(archive_path, num_samples=5000):
     
     return training_samples
 
-def generate_samples_for_pid_combo(pid1_params, pid2_params, num_samples):
-    """Generate training samples for a specific PID combination"""
-    
-    # This is a simplified version - in practice, you'd run detailed simulations
-    # to find optimal blend weights at different states
-    
+def generate_samples_for_pid_combo(pid1_params, pid2_params, num_samples, data_files, model):
+    """Generate training samples via optimal blend weight discovery using existing run_rollout()"""
     samples = []
     
     for _ in range(num_samples):
-        # Generate random vehicle state
-        v_ego = random.uniform(5, 60)  # Speed range
-        roll_lataccel = random.uniform(-3, 3)  # Lateral acceleration
-        a_ego = random.uniform(-2, 2)  # Longitudinal acceleration
+        data_file = random.choice(data_files)
         
-        error = random.uniform(-1, 1)  # Control error
-        error_integral = random.uniform(-0.5, 0.5)  # Integral term
-        error_derivative = random.uniform(-0.2, 0.2)  # Derivative term
+        # Find optimal blend weight using existing infrastructure
+        best_blend = find_optimal_blend_weight(pid1_params, pid2_params, data_file, model)
         
-        future_lataccel_mean = random.uniform(-2, 2)  # Future plan mean
-        future_lataccel_std = random.uniform(0, 1)    # Future plan std
+        # Extract features using existing state extraction
+        state, error, future_plan = extract_state_from_file(data_file)
+        features = [state.v_ego, state.roll_lataccel, state.a_ego, error, 0, 0,
+                   np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
+                   np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0]
         
-        # Features vector (8 dimensions)
-        features = [v_ego, roll_lataccel, a_ego, error, error_integral, 
-                   error_derivative, future_lataccel_mean, future_lataccel_std]
-        
-        # Compute optimal blend weight (simplified heuristic for now)
-        # In practice, this would come from detailed simulation analysis
-        if v_ego < 20:
-            optimal_blend = 0.8  # Favor PID1 at low speeds
-        elif v_ego > 45:
-            optimal_blend = 0.2  # Favor PID2 at high speeds  
-        else:
-            # Blend based on error magnitude and future plan complexity
-            error_factor = min(abs(error), 1.0)
-            plan_complexity = min(future_lataccel_std, 1.0)
-            optimal_blend = 0.5 + 0.3 * (error_factor - plan_complexity)
-            optimal_blend = np.clip(optimal_blend, 0.0, 1.0)
-        
-        samples.append((features, optimal_blend))
+        samples.append((features, best_blend))
     
     return samples
+
+def find_optimal_blend_weight(pid1_params, pid2_params, data_file, model):
+    """Find optimal blend using existing run_rollout() infrastructure"""
+    from optimization import generate_blended_controller
+    import tempfile
+    import os
+    
+    best_cost, best_blend = float('inf'), 0.5
+    
+    for blend in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:  # Simple discrete search
+        # Create temporary controller with fixed blend weight
+        controller_content = generate_blended_controller(pid1_params, pid2_params).replace(
+            'if v_ego < 40:', f'if False:  # Fixed blend weight: {blend}').replace(
+            'weights = [0.8, 0.2]', f'weights = [{blend}, {1-blend}]').replace(
+            'weights = [0.2, 0.8]', f'weights = [{blend}, {1-blend}]')
+        
+        # Create temp file
+        temp_controller_name = f"temp_blend_{hashlib.md5(str(blend).encode()).hexdigest()[:8]}"
+        temp_path = f"controllers/{temp_controller_name}.py"
+        
+        try:
+            with open(temp_path, 'w') as f:
+                f.write(controller_content)
+            
+            cost, _, _ = run_rollout(data_file, temp_controller_name, model)
+            
+            if cost['total_cost'] < best_cost:
+                best_cost, best_blend = cost['total_cost'], blend
+                
+        except Exception as e:
+            print(f"Error testing blend {blend}: {e}")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+    
+    return best_blend
+
+def extract_state_from_file(data_file):
+    """Extract random state from data file for training"""
+    import pandas as pd
+    
+    df = pd.read_csv(data_file)
+    
+    # Pick random time step
+    idx = random.randint(100, min(len(df) - 50, 400))  # Ensure we have future plan data
+    
+    # Create state tuple (matches tinyphysics.py format)
+    from collections import namedtuple
+    State = namedtuple('State', ['roll_lataccel', 'v_ego', 'a_ego'])
+    FuturePlan = namedtuple('FuturePlan', ['lataccel'])
+    
+    ACC_G = 9.81
+    state = State(
+        roll_lataccel=np.sin(df.iloc[idx]['roll']) * ACC_G,
+        v_ego=df.iloc[idx]['vEgo'],
+        a_ego=df.iloc[idx]['aEgo']
+    )
+    
+    error = random.uniform(-1, 1)  # Simulate control error
+    
+    future_plan = FuturePlan(
+        lataccel=df['targetLateralAcceleration'].iloc[idx:idx+20].tolist()
+    )
+    
+    return state, error, future_plan
 
 def create_random_blender_architecture():
     """Create random BlenderNet architecture for tournament evolution"""
@@ -131,7 +177,7 @@ def create_random_blender_architecture():
 
 def train_blender_architecture(architecture, training_data, epochs=100):
     """
-    Train a BlenderNet architecture on training data
+    Train actual BlenderNet using PyTorch
     
     Args:
         architecture: Dict with network architecture parameters
@@ -141,39 +187,38 @@ def train_blender_architecture(architecture, training_data, epochs=100):
     Returns:
         Path to trained ONNX model
     """
-    
-    # This is a placeholder - in practice, you'd use PyTorch here
-    # For now, we'll simulate training and create a dummy ONNX model
+    from neural_blender_net import BlenderNet, train_blender_net
     
     model_id = architecture['id']
     onnx_path = f"models/blender_{model_id}.onnx"
     
-    # Simulate training time
     print(f"    Training architecture {model_id} for {epochs} epochs...")
     
     # Create models directory if it doesn't exist
     os.makedirs("models", exist_ok=True)
     
-    # For now, create a placeholder ONNX file
-    # In practice, this would be the actual trained PyTorch model exported to ONNX
-    with open(onnx_path, 'wb') as f:
-        f.write(b"PLACEHOLDER_ONNX_MODEL")  # This would be real ONNX bytes
+    # Train actual PyTorch model
+    trained_model = train_blender_net(training_data, epochs=epochs)
+    
+    # Export to ONNX for inference
+    trained_model.export_to_onnx(onnx_path)
     
     return onnx_path
 
-def evaluate_blender_architecture(architecture, training_data, data_files, model, max_files=20):
+def evaluate_blender_architecture(architecture, training_data, data_files, model, tournament_2_baseline, max_files=20):
     """
-    Evaluate BlenderNet architecture performance
+    Evaluate BlenderNet architecture performance - only reward improvements over Tournament #2
     
     Args:
         architecture: Dict with network architecture
-        training_data: Training data for this architecture  
+        training_data: Training data for this architecture
         data_files: List of data files for evaluation
         model: TinyPhysicsModel instance
+        tournament_2_baseline: Best cost from Tournament #2 to beat
         max_files: Maximum files to evaluate on
     
     Returns:
-        Average cost across evaluations
+        Average cost (penalized if no improvement over baseline)
     """
     
     # Train the architecture
@@ -182,8 +227,7 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     # Get best PID parameters from archive for evaluation
     pid_pairs = get_top_pid_pairs_from_archive()
     
-    total_cost = 0
-    num_evaluations = 0
+    total_costs = []
     
     # Evaluate on subset of data files
     eval_files = data_files[:max_files]
@@ -191,35 +235,48 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     for data_file in eval_files:
         for pid1_params, pid2_params in pid_pairs[:3]:  # Top 3 PID pairs
             
-            # Create temporary neural controller
-            temp_controller_path = create_temp_neural_controller_file(
-                pid1_params, pid2_params, onnx_path, architecture['id']
-            )
+            # Create temporary neural controller using new pattern
+            controller_module = _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, architecture['id'])
             
             try:
-                # Evaluate using the neural blended controller
-                rollout_result = run_rollout(data_file, "neural_blended", model, debug=False)
-                
-                # Extract cost from rollout result (handle both formats)
-                if isinstance(rollout_result, tuple):
-                    cost = rollout_result[0].get('total_cost', 1000)
-                else:
-                    cost = rollout_result
-                
-                total_cost += cost
-                num_evaluations += 1
+                # Evaluate using existing run_rollout pattern
+                cost, _, _ = run_rollout(data_file, controller_module, model)
+                total_costs.append(cost["total_cost"])
                 
             except Exception as e:
                 print(f"    Evaluation failed: {e}")
-                total_cost += 1000  # Penalty for failed evaluation
-                num_evaluations += 1
+                total_costs.append(1000)  # Penalty for failed evaluation
                 
             finally:
                 # Clean up temporary controller
-                if os.path.exists(temp_controller_path):
-                    os.remove(temp_controller_path)
+                cleanup_temp_controller(controller_module)
     
-    return total_cost / num_evaluations if num_evaluations > 0 else 1000
+    neural_cost = np.mean(total_costs) if total_costs else 1000
+    
+    # Only reward if better than Tournament #2 best (need 2+ point improvement for leaderboard targeting)
+    improvement = tournament_2_baseline - neural_cost
+    if improvement > 2.0:
+        return neural_cost
+    else:
+        return 1000  # Penalty for not improving enough
+
+def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
+    """Create temporary neural controller using new pattern"""
+    from optimization import generate_neural_blended_controller
+    
+    controller_content = generate_neural_blended_controller(pid1_params, pid2_params, onnx_path)
+    module_name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
+    
+    with open(f"controllers/{module_name}.py", "w") as f:
+        f.write(controller_content)
+    
+    return module_name
+
+def cleanup_temp_controller(module_name):
+    """Clean up temporary controller file"""
+    temp_path = f"controllers/{module_name}.py"
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
 
 def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json"):
     """Get top PID parameter pairs from tournament archive"""
@@ -247,26 +304,29 @@ def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json")
     
     return pid_pairs
 
-def create_temp_neural_controller_file(pid1_params, pid2_params, onnx_path, arch_id):
-    """Create temporary neural controller file for evaluation"""
-    
-    controller_content = f'''from controllers.neural_blended import Controller as BaseNeuralController
-
-class Controller(BaseNeuralController):
-    def __init__(self):
-        pid1_params = {pid1_params}
-        pid2_params = {pid2_params}
-        blender_model_path = "{onnx_path}"
+def get_tournament_2_baseline(archive_path="plans/tournament_archive.json"):
+    """Get best cost from Tournament #2 to beat"""
+    try:
+        with open(archive_path, 'r') as f:
+            archive = json.load(f)
         
-        super().__init__(pid1_params, pid2_params, blender_model_path)
-'''
-    
-    temp_path = f"controllers/temp_neural_eval_{arch_id}.py"
-    
-    with open(temp_path, 'w') as f:
-        f.write(controller_content)
-    
-    return temp_path
+        # Find absolute best performer from Tournament #2
+        valid_performers = [p for p in archive['archive']
+                          if 'stats' in p and 'avg_total_cost' in p['stats']]
+        
+        if valid_performers:
+            best_performer = min(valid_performers, key=lambda x: x['stats']['avg_total_cost'])
+            tournament_2_best = best_performer['stats']['avg_total_cost']
+            print(f"📊 Tournament #2 baseline to beat: {tournament_2_best:.2f}")
+            return tournament_2_best, best_performer
+        else:
+            print("⚠️  No valid Tournament #2 results found, using default baseline")
+            return 76.81, None
+            
+    except Exception as e:
+        print(f"⚠️  Could not load Tournament #2 baseline: {e}, using 76.81")
+        return 76.81, None
+
 
 def tournament_selection_and_mutation(population, elite_pct=0.3, mutation_rate=0.2):
     """Apply tournament selection and mutation to BlenderNet population"""
@@ -314,11 +374,11 @@ def mutate_architecture(parent, mutation_rate=0.2):
 
 def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_size=20, max_files=20):
     """
-    Run tournament optimization for BlenderNet architectures
+    Run tournament optimization for BlenderNet architectures - targeting leaderboard performance
     
     Args:
         archive_path: Path to PID tournament archive
-        data_files: List of data files for evaluation  
+        data_files: List of data files for evaluation
         model_path: Path to TinyPhysics model
         rounds: Number of tournament rounds
         pop_size: Population size
@@ -328,15 +388,18 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
         Best BlenderNet architecture
     """
     
-    print("🏆 Starting Blender Tournament Optimization")
-    print("=" * 60)
+    print("🏆 Starting Blender Tournament Optimization (Target: <45 cost for leaderboard)")
+    print("=" * 80)
+    
+    # Get Tournament #2 baseline to beat
+    tournament_2_baseline, best_tournament_2 = get_tournament_2_baseline(archive_path)
     
     # Create GPU-accelerated model instance (follows tinyphysics.py pattern)
     model = TinyPhysicsModel(model_path, debug=False)
     print("Blender tournament: GPU ENABLED")
     
     # Generate training data from PID archive
-    training_data = create_training_data_from_archive(archive_path)
+    training_data = create_training_data_from_archive(archive_path, data_files, model)
     
     # Initialize population with random architectures
     population = []
@@ -350,6 +413,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
     print(f"  - Population size: {pop_size}")
     print(f"  - {max_files} files per evaluation")
     print(f"  - {len(data_files)} total data files available")
+    print(f"  - Tournament #2 baseline to beat: {tournament_2_baseline:.2f}")
     print()
     
     best_ever_cost = float('inf')
@@ -363,7 +427,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
         for i, architecture in enumerate(population):
             if architecture['cost'] == float('inf'):  # Not yet evaluated
                 cost = evaluate_blender_architecture(
-                    architecture, training_data, data_files, model, max_files
+                    architecture, training_data, data_files, model, tournament_2_baseline, max_files
                 )
                 architecture['cost'] = cost
                 
@@ -381,7 +445,8 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
             best_ever_cost = round_best['cost']
             best_ever_architecture = round_best.copy()
             
-            print(f"🎉 New tournament best: {best_ever_cost:.2f}")
+            improvement = tournament_2_baseline - best_ever_cost
+            print(f"🎉 New tournament best: {best_ever_cost:.2f} (improvement: +{improvement:.2f})")
             print(f"   Architecture: {best_ever_architecture['hidden_sizes']}")
             print(f"   Dropout: {best_ever_architecture['dropout_rate']}")
         
@@ -393,14 +458,29 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
             print(f"  Round {round_num} complete: final round")
     
     print()
-    print("🏆 Blender Tournament Complete!")
-    print(f"Best architecture cost: {best_ever_cost:.2f}")
-    print(f"Best architecture: {best_ever_architecture}")
+    print("🎯 Stage 2d Results:")
+    print(f"  Tournament #2 best: {tournament_2_baseline:.2f}")
+    print(f"  Neural blending best: {best_ever_cost:.2f}")
+    improvement = tournament_2_baseline - best_ever_cost
+    print(f"  Stage 2d improvement: {improvement:.2f} points")
     
-    # Save best architecture
+    if best_ever_cost < tournament_2_baseline:
+        print("✅ SUCCESS: Neural blending improved over Tournament #2!")
+        # Create champion controller
+        create_champion_controller(best_ever_architecture, best_tournament_2, best_ever_cost, archive_path)
+    else:
+        print("⚠️  WARNING: Neural blending did not improve over Tournament #2")
+    
+    # Save results
     results = {
+        'champion_cost': best_ever_cost,
+        'tournament_2_baseline': tournament_2_baseline,
+        'improvement': improvement,
         'best_architecture': best_ever_architecture,
-        'best_cost': best_ever_cost,
+        'best_pid_params': {
+            'low_gains': best_tournament_2['low_gains'] if best_tournament_2 else None,
+            'high_gains': best_tournament_2['high_gains'] if best_tournament_2 else None
+        },
         'tournament_config': {
             'rounds': rounds,
             'pop_size': pop_size,
@@ -408,7 +488,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
         }
     }
     
-    results_path = "plans/blender_tournament_results.json"
+    results_path = "plans/stage_2d_champion_results.json"
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2)
     
@@ -452,6 +532,89 @@ def main():
     )
     
     return 0
+
+def create_champion_controller(best_architecture, best_tournament_2, champion_cost, archive_path):
+    """Create final champion controller ready for eval.py"""
+    
+    print(f"🏆 Creating champion controller...")
+    
+    # Train the champion model
+    training_data_path = "plans/blender_training_data.json"
+    with open(training_data_path, 'r') as f:
+        training_data = json.load(f)
+    
+    # Train final champion model
+    champion_onnx_path = train_blender_architecture(best_architecture, training_data)
+    
+    # Move to champion location
+    import shutil
+    final_onnx_path = "models/neural_blender_champion.onnx"
+    shutil.copy2(champion_onnx_path, final_onnx_path)
+    
+    # Get best PID parameters
+    if best_tournament_2:
+        pid1_params = best_tournament_2['low_gains']
+        pid2_params = best_tournament_2['high_gains']
+    else:
+        # Fallback to best from archive
+        pid_pairs = get_top_pid_pairs_from_archive(archive_path)
+        pid1_params, pid2_params = pid_pairs[0]
+    
+    # Create champion controller file
+    from optimization import generate_neural_blended_controller
+    
+    champion_controller_content = f'''from controllers import BaseController
+from controllers.shared_pid import SpecializedPID
+import onnxruntime as ort
+import numpy as np
+
+class Controller(BaseController):
+    """Champion Neural Blended Controller - Stage 2d Winner (Cost: {champion_cost:.2f})"""
+    
+    def __init__(self):
+        # Best PID parameters from Tournament #2
+        self.pid1 = SpecializedPID({pid1_params[0]}, {pid1_params[1]}, {pid1_params[2]}, "Champion_PID1")
+        self.pid2 = SpecializedPID({pid2_params[0]}, {pid2_params[1]}, {pid2_params[2]}, "Champion_PID2")
+        
+        # Champion trained neural blender
+        self.blender_session = ort.InferenceSession(
+            "models/neural_blender_champion.onnx",
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        
+        print(f"🏆 Champion Neural Blended Controller loaded (cost: {champion_cost:.2f})")
+        print(f"  PID1: P={pid1_params[0]:.3f}, I={pid1_params[1]:.3f}, D={pid1_params[2]:.3f}")
+        print(f"  PID2: P={pid2_params[0]:.3f}, I={pid2_params[1]:.3f}, D={pid2_params[2]:.3f}")
+        print(f"  Neural Architecture: {best_architecture['hidden_sizes']}")
+    
+    def update(self, target_lataccel, current_lataccel, state, future_plan):
+        error = target_lataccel - current_lataccel
+        pid1_output = self.pid1.update(error)
+        pid2_output = self.pid2.update(error)
+        
+        # Neural blending using champion model
+        features = np.array([[state.v_ego, state.roll_lataccel, state.a_ego, error,
+                             self.pid1.error_integral, error - self.pid1.prev_error,
+                             np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
+                             np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0]], dtype=np.float32)
+        
+        blend_weight = self.blender_session.run(None, {{'input': features}})[0][0]
+        blend_weight = np.clip(float(blend_weight), 0.0, 1.0)
+        
+        return blend_weight * pid1_output + (1 - blend_weight) * pid2_output
+    
+    def __repr__(self):
+        return f"ChampionNeuralBlendedController(cost={champion_cost:.2f})"
+'''
+    
+    # Write champion controller
+    champion_controller_path = "controllers/neural_blended_champion.py"
+    with open(champion_controller_path, 'w') as f:
+        f.write(champion_controller_content)
+    
+    print(f"✅ Champion controller created: {champion_controller_path}")
+    print(f"✅ Champion model saved: {final_onnx_path}")
+    print(f"🎯 Ready for eval.py: --test_controller neural_blended_champion")
 
 if __name__ == "__main__":
     exit(main())

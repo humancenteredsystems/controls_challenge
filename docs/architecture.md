@@ -46,6 +46,13 @@ Optimize control parameters for autonomous vehicle steering systems using physic
 │  │   Controller    │  │   Controller    │  │   Controller    │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
 ├─────────────────────────────────────────────────────────────────┤
+│                   Validation & Evaluation                       │
+│  ┌─────────────────┐  ┌─────────────────────────────────────────┐ │
+│  │  eval_custom.py │  │            eval.py                      │ │
+│  │ (Pre-submission │  │        (Official Challenge)             │ │
+│  │  Validation)    │  │                                         │ │
+│  └─────────────────┘  └─────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
 │                    Physics Simulation                           │
 │              TinyPhysicsSimulator                               │
 └─────────────────────────────────────────────────────────────────┘
@@ -109,7 +116,48 @@ def run_rollout(data_path, controller_type, model_path_or_instance, debug=False)
 - **Performance Optimization:** Enables model reuse for GPU efficiency
 - **Clean Interface:** Single function handles both use cases transparently
 
-### 3.3 Optimization Algorithms
+### 3.3 Pre-Submission Validation System
+
+**Location:** [`eval_custom.py`](../eval_custom.py)
+
+**Purpose:** Lightweight pre-submission validation tool to catch compatibility issues before running the official eval.py, preventing time step mismatches and other submission problems.
+
+**Key Features:**
+- **Multiple Validation Modes:** Quick (10 segments), Standard (100 segments), Validate-only (3 segments)
+- **Compatibility Validation:** Controller loading, time step consistency, basic rollout testing
+- **Performance Gating:** Ensures controller beats baseline before submission
+- **Safety Checks:** Prevents eval.py failures due to compatibility issues
+
+**Validation Modes:**
+```python
+VALIDATION_MODES = {
+    'quick': {
+        'num_segs': 10,
+        'description': 'Fast validation with 10 segments for development testing'
+    },
+    'standard': {
+        'num_segs': 100,
+        'description': 'Standard evaluation matching eval.py default'
+    },
+    'validate-only': {
+        'num_segs': 3,
+        'description': 'Minimal validation - only check controller compatibility'
+    }
+}
+```
+
+**Usage Workflow:**
+1. **Controller Compatibility Check:** Verifies controller can be loaded and basic rollout works
+2. **Time Step Validation:** Ensures dt = 0.1 consistency to prevent eval.py mismatches
+3. **Performance Evaluation:** Compares against baseline controller (configurable)
+4. **Results Export:** Optional JSON output for integration with optimization pipeline
+
+**Integration Points:**
+- **Pipeline Output:** Validates [`neural_blended_champion.py`](../controllers/neural_blended_champion.py) from Stage 2d
+- **Official Evaluation:** Pre-validates before [`eval.py`](../eval.py) submission
+- **Development Cycle:** Quick validation during controller development
+
+### 3.4 Optimization Algorithms
 
 #### 3.3.1 Blended 2-PID Optimizer
 

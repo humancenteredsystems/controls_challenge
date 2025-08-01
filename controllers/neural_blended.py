@@ -21,29 +21,27 @@ class Controller(BaseController):
         self.pid1 = SpecializedPID(pid1_params[0], pid1_params[1], pid1_params[2], "PID1")
         self.pid2 = SpecializedPID(pid2_params[0], pid2_params[1], pid2_params[2], "PID2")
         
-        # Load BlenderNet ONNX model
+        # Neural model is REQUIRED - no fallbacks
         if blender_model_path is None:
             blender_model_path = self._find_blender_model()
         
-        if blender_model_path and Path(blender_model_path).exists():
-            # GPU-first session creation (follows tinyphysics.py pattern)
-            session_options = ort.SessionOptions()
-            session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-            
-            self.blender_session = ort.InferenceSession(
-                blender_model_path, 
-                sess_options=session_options,
-                providers=session_providers
-            )
-            
-            print(f"Neural blended controller initialized with GPU acceleration")
-            print(f"  PID1: P={self.pid1.p:.3f}, I={self.pid1.i:.3f}, D={self.pid1.d:.3f}")
-            print(f"  PID2: P={self.pid2.p:.3f}, I={self.pid2.i:.3f}, D={self.pid2.d:.3f}")
-            print(f"  BlenderNet: {blender_model_path}")
-        else:
-            # Fallback to simple blending if no neural model
-            self.blender_session = None
-            print("Warning: No BlenderNet model found, using velocity-based fallback")
+        if not blender_model_path or not Path(blender_model_path).exists():
+            raise RuntimeError("Neural blender model required - Stage 2d must complete successfully")
+        
+        # GPU-first session creation (follows tinyphysics.py pattern)
+        session_options = ort.SessionOptions()
+        session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        
+        self.blender_session = ort.InferenceSession(
+            blender_model_path,
+            sess_options=session_options,
+            providers=session_providers
+        )
+        
+        print(f"Neural blended controller initialized with GPU acceleration")
+        print(f"  PID1: P={self.pid1.p:.3f}, I={self.pid1.i:.3f}, D={self.pid1.d:.3f}")
+        print(f"  PID2: P={self.pid2.p:.3f}, I={self.pid2.i:.3f}, D={self.pid2.d:.3f}")
+        print(f"  BlenderNet: {blender_model_path}")
     
     def _load_best_pid_params(self):
         """Load best PID parameters from tournament archive"""
@@ -89,12 +87,8 @@ class Controller(BaseController):
         pid1_output = self.pid1.update(error)
         pid2_output = self.pid2.update(error)
         
-        if self.blender_session is not None:
-            # Neural blending
-            blend_weight = self._get_neural_blend_weight(state, error, future_plan)
-        else:
-            # Fallback to velocity-based blending
-            blend_weight = 0.8 if state.v_ego < 40 else 0.2
+        # Neural blending ONLY - no fallbacks
+        blend_weight = self._get_neural_blend_weight(state, error, future_plan)
         
         # Blend PID outputs
         blended_output = blend_weight * pid1_output + (1 - blend_weight) * pid2_output
@@ -102,7 +96,7 @@ class Controller(BaseController):
         return blended_output
     
     def _get_neural_blend_weight(self, state, error, future_plan):
-        """Get blending weight from neural network"""
+        """Get blending weight from neural network - no fallbacks"""
         
         # Extract features (same as BlenderNet.extract_features)
         features = np.array([
@@ -117,17 +111,12 @@ class Controller(BaseController):
         ], dtype=np.float32).reshape(1, -1)
         
         # Get blend weight from neural network
-        try:
-            blend_weight = self.blender_session.run(None, {'input': features})[0][0]
-            
-            # Ensure blend weight is in valid range
-            blend_weight = np.clip(blend_weight, 0.0, 1.0)
-            
-            return float(blend_weight)
-            
-        except Exception as e:
-            print(f"Neural blending failed: {e}, using fallback")
-            return 0.8 if state.v_ego < 40 else 0.2
+        blend_weight = self.blender_session.run(None, {'input': features})[0][0]
+        
+        # Ensure blend weight is in valid range
+        blend_weight = np.clip(float(blend_weight), 0.0, 1.0)
+        
+        return blend_weight
     
     def __repr__(self):
         if self.blender_session is not None:
