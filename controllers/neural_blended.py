@@ -107,10 +107,10 @@ class Controller(BaseController):
         return pid1_params, pid2_params
     
     def _find_blender_model(self):
-        """Find the best BlenderNet model"""
+        """Find the best BlenderNet model for Tournament #1/#2"""
         models_dir = Path(__file__).parent.parent / "models"
         
-        # Look for blender models
+        # Look for multiple blender models (Tournament #1/#2 pattern)
         blender_models = list(models_dir.glob("blender_*.onnx"))
         
         if blender_models:
