@@ -4,7 +4,7 @@ Complete Training Pipeline for Neural Blender System
 
 Pipeline stages:
 1. Broad PID Parameter Space Exploration (Grid Search)
-2. PID Tournament #1 (Initial Discovery)  
+2. PID Tournament #1 (Initial Discovery)
 3. PID Tournament #2 (Champion Validation)
 4. PID Blender Tournament (Neural Architecture Search)
 
@@ -15,6 +15,7 @@ import subprocess
 import sys
 import json
 import time
+import argparse
 from pathlib import Path
 
 def print_stage_header(stage_num, stage_name):
@@ -29,7 +30,6 @@ def print_results_summary(stage_name, results_file):
         try:
             with open(results_file, 'r') as f:
                 results = json.load(f)
-            
             if isinstance(results, dict) and 'best_cost' in results:
                 print(f"✅ {stage_name} Complete - Best Cost: {results['best_cost']:.2f}")
             else:
@@ -39,226 +39,159 @@ def print_results_summary(stage_name, results_file):
     else:
         print(f"⚠️  {stage_name} results file not found: {results_file}")
 
-def run_stage_1_grid_search():
+def run_stage_1_grid_search(args):
     """Stage 1: Broad PID Parameter Space Exploration"""
     print_stage_header(1, "Broad PID Parameter Space Exploration")
-    print("Exploring comprehensive parameter space using grid search...")
-    print("This establishes baseline performance and initial parameter ranges.")
-    
     cmd = [
         sys.executable, "optimization/blended_2pid_optimizer.py",
-        "--comprehensive", "true"
+        "--num_combinations", str(args.stage1_combinations),
+        "--max_files_per_test", str(args.stage1_max_files),
+        "--num_files", str(args.stage1_num_files),
+        "--model_path", args.model_path or "",
+        "--data_dir", args.data_dir or ""
     ]
-    
     print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=False)
-    
+    result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Grid Search", "blended_2pid_comprehensive_results.json")
         return True
-    else:
-        print("❌ Stage 1 failed!")
-        return False
+    print("❌ Stage 1 failed!")
+    return False
 
-def run_stage_2_tournament_1():
+def run_stage_2_tournament_1(args):
     """Stage 2: PID Tournament #1 - Initial Discovery"""
     print_stage_header(2, "PID Tournament #1 - Initial Discovery")
-    print("Running initial tournament optimization on limited dataset...")
-    print("This discovers promising parameter combinations efficiently.")
-    
     cmd = [
         sys.executable, "optimization/tournament_optimizer.py",
-        "--rounds", "12",
-        "--pop_size", "25", 
-        "--elite_pct", "0.3",
-        "--revive_pct", "0.2",
-        "--max_files", "30",
-        "--perturb_scale", "0.05"
+        "--rounds", str(args.t1_rounds),
+        "--pop_size", str(args.t1_pop_size),
+        "--elite_pct", str(args.t1_elite_pct),
+        "--revive_pct", str(args.t1_revive_pct),
+        "--max_files", str(args.t1_max_files),
+        "--perturb_scale", str(args.perturb_scale)
     ]
-    
     print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=False)
-    
+    result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Tournament #1", "plans/tournament_progress.json")
         return True
-    else:
-        print("❌ Stage 2 failed!")
-        return False
+    print("❌ Stage 2 failed!")
+    return False
 
-def run_stage_3_tournament_2():
+def run_stage_3_tournament_2(args):
     """Stage 3: PID Tournament #2 - Champion Validation"""
     print_stage_header(3, "PID Tournament #2 - Champion Validation")
-    print("Validating champions from Tournament #1 on expanded dataset...")
-    print("This provides robust validation of top performers.")
-    
-    archive_path = "plans/tournament_archive.json"
-    if not Path(archive_path).exists():
-        print(f"❌ Archive file {archive_path} not found! Tournament #1 must complete first.")
+    archive = "plans/tournament_archive.json"
+    if not Path(archive).exists():
+        print(f"❌ Archive file {archive} not found! Tournament #1 must complete first.")
         return False
-    
     cmd = [
         sys.executable, "optimization/tournament_optimizer.py",
-        "--rounds", "12",
-        "--pop_size", "25",
-        "--elite_pct", "0.3", 
-        "--revive_pct", "0.2",
-        "--max_files", "50",
-        "--perturb_scale", "0.05",
-        "--seed_from_archive", archive_path
+        "--rounds", str(args.t2_rounds),
+        "--pop_size", str(args.t2_pop_size),
+        "--elite_pct", str(args.t2_elite_pct),
+        "--revive_pct", str(args.t2_revive_pct),
+        "--max_files", str(args.t2_max_files),
+        "--perturb_scale", str(args.perturb_scale),
+        "--seed_from_archive", archive
     ]
-    
     print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=False)
-    
+    result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Tournament #2", "plans/tournament_progress.json")
         return True
-    else:
-        print("❌ Stage 3 failed!")
-        return False
+    print("❌ Stage 3 failed!")
+    return False
 
-def run_stage_4_blender_tournament():
+def run_stage_4_blender_tournament(args):
     """Stage 4: PID Blender Tournament - Neural Architecture Search"""
     print_stage_header(4, "PID Blender Tournament - Neural Architecture Search")
-    print("Evolving neural network architectures for optimal PID blending...")
-    print("This learns intelligent blending strategies to minimize cost.")
-    
-    archive_path = "plans/tournament_archive.json"
-    if not Path(archive_path).exists():
-        print(f"❌ Archive file {archive_path} not found! Previous tournaments must complete first.")
+    archive = "plans/tournament_archive.json"
+    if not Path(archive).exists():
+        print(f"❌ Archive file {archive} not found! Previous tournaments must complete first.")
         return False
-    
     cmd = [
         sys.executable, "optimization/blender_tournament_optimizer.py",
-        "--archive", archive_path,
-        "--rounds", "15",
-        "--pop_size", "20",
-        "--max_files", "25"
+        "--archive", archive,
+        "--rounds", str(args.blender_rounds),
+        "--pop_size", str(args.blender_pop_size),
+        "--max_files", str(args.blender_max_files)
     ]
-    
     print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=False)
-    
+    result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Blender Tournament", "plans/blender_tournament_results.json")
         return True
-    else:
-        print("❌ Stage 4 failed!")
-        return False
+    print("❌ Stage 4 failed!")
+    return False
 
 def print_pipeline_summary():
     """Print final pipeline summary"""
     print("\n" + "=" * 80)
     print("TRAINING PIPELINE COMPLETE")
     print("=" * 80)
-    
-    # Collect results from all stages
     results_files = [
         ("Grid Search", "blended_2pid_comprehensive_results.json"),
         ("Tournament #1", "plans/tournament_progress.json"),
         ("Tournament #2", "plans/tournament_progress.json"),
         ("Blender Tournament", "plans/blender_tournament_results.json")
     ]
-    
-    print("\n📊 Final Results Summary:")
-    print("-" * 50)
-    
-    best_costs = []
-    
-    for stage_name, results_file in results_files:
-        if Path(results_file).exists():
+    for name, path in results_files:
+        if Path(path).exists():
             try:
-                with open(results_file, 'r') as f:
-                    results = json.load(f)
-                
-                if stage_name == "Grid Search" and isinstance(results, dict):
-                    if 'best_cost' in results:
-                        cost = results['best_cost']
-                        best_costs.append((stage_name, cost))
-                        print(f"{stage_name:20}: {cost:.2f}")
-                
-                elif "Tournament" in stage_name and isinstance(results, dict):
-                    if 'best_cost' in results:
-                        cost = results['best_cost']
-                        best_costs.append((stage_name, cost))
-                        print(f"{stage_name:20}: {cost:.2f}")
-                
-                elif stage_name == "Blender Tournament" and isinstance(results, dict):
-                    if 'best_cost' in results:
-                        cost = results['best_cost']
-                        best_costs.append((stage_name, cost))
-                        print(f"{stage_name:20}: {cost:.2f}")
-                        
-            except Exception as e:
-                print(f"{stage_name:20}: Error reading results - {e}")
+                data = json.load(open(path))
+                cost = data.get('best_cost', None)
+                if cost is not None:
+                    print(f"{name:20}: {cost:.2f}")
+            except:
+                print(f"{name:20}: Error reading results")
         else:
-            print(f"{stage_name:20}: Results file not found")
-    
-    if best_costs:
-        print("\n🏆 Performance Progression:")
-        print("-" * 40)
-        for stage, cost in best_costs:
-            print(f"  {stage}: {cost:.2f}")
-        
-        if len(best_costs) > 1:
-            initial_cost = best_costs[0][1]
-            final_cost = best_costs[-1][1]
-            improvement = ((initial_cost - final_cost) / initial_cost) * 100
-            print(f"\n🎯 Total Improvement: {improvement:.1f}% reduction in cost")
-            print(f"   From {initial_cost:.2f} → {final_cost:.2f}")
-    
-    print("\n📁 Key Output Files:")
-    print("-" * 30)
-    print("  • plans/tournament_archive.json - Complete PID parameter database")
-    print("  • plans/blender_tournament_results.json - Best neural architecture")
-    print("  • models/blender_*.onnx - Trained neural blending models")
-    print("  • controllers/neural_blended.py - Production controller")
-    
+            print(f"{name:20}: Results not found")
     print("\n🚀 Next Steps:")
-    print("-" * 20)
     print("  1. Test the neural blended controller in production")
-    print("  2. Monitor performance on new scenarios")  
+    print("  2. Monitor performance on new scenarios")
     print("  3. Run additional blender tournaments if needed")
     print("  4. Deploy best performing model")
 
 def main():
     """Run complete training pipeline"""
-    
-    start_time = time.time()
-    
+    parser = argparse.ArgumentParser(description="Complete training pipeline flags")
+    # Stage 1 flags
+    parser.add_argument("--stage1-combinations", dest="stage1_combinations", type=int, default=300)
+    parser.add_argument("--stage1-max-files", dest="stage1_max_files", type=int, default=25)
+    parser.add_argument("--stage1-num-files", dest="stage1_num_files", type=int, default=50)
+    parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--data_dir", type=str, default=None)
+    # Tournament 1 flags
+    parser.add_argument("--t1-rounds", dest="t1_rounds", type=int, default=12)
+    parser.add_argument("--t1-pop-size", dest="t1_pop_size", type=int, default=25)
+    parser.add_argument("--t1-max-files", dest="t1_max_files", type=int, default=30)
+    parser.add_argument("--t1-elite-pct", dest="t1_elite_pct", type=float, default=0.3)
+    parser.add_argument("--t1-revive-pct", dest="t1_revive_pct", type=float, default=0.2)
+    # Tournament 2 flags
+    parser.add_argument("--t2-rounds", dest="t2_rounds", type=int, default=12)
+    parser.add_argument("--t2-pop-size", dest="t2_pop_size", type=int, default=25)
+    parser.add_argument("--t2-max-files", dest="t2_max_files", type=int, default=50)
+    parser.add_argument("--t2-elite-pct", dest="t2_elite_pct", type=float, default=0.3)
+    parser.add_argument("--t2-revive-pct", dest="t2_revive_pct", type=float, default=0.2)
+    parser.add_argument("--perturb-scale", dest="perturb_scale", type=float, default=0.05)
+    # Blender tournament flags
+    parser.add_argument("--blender-rounds", dest="blender_rounds", type=int, default=15)
+    parser.add_argument("--blender-pop-size", dest="blender_pop_size", type=int, default=20)
+    parser.add_argument("--blender-max-files", dest="blender_max_files", type=int, default=25)
+    args = parser.parse_args()
+
     print("🚀 Starting Complete Training Pipeline")
-    print("Goal: Drive total_cost as low as possible through progressive optimization")
-    print(f"Pipeline: Grid Search → Tournament #1 → Tournament #2 → Blender Tournament")
-    
-    # Stage 1: Grid Search
-    if not run_stage_1_grid_search():
-        print("Pipeline failed at Stage 1")
+    if not run_stage_1_grid_search(args):
         return 1
-    
-    # Stage 2: Tournament #1
-    if not run_stage_2_tournament_1():
-        print("Pipeline failed at Stage 2")
+    if not run_stage_2_tournament_1(args):
         return 1
-    
-    # Stage 3: Tournament #2  
-    if not run_stage_3_tournament_2():
-        print("Pipeline failed at Stage 3")
+    if not run_stage_3_tournament_2(args):
         return 1
-    
-    # Stage 4: Blender Tournament
-    if not run_stage_4_blender_tournament():
-        print("Pipeline failed at Stage 4")
+    if not run_stage_4_blender_tournament(args):
         return 1
-    
-    # Summary
-    end_time = time.time()
-    duration = (end_time - start_time) / 60  # Convert to minutes
-    
+
     print_pipeline_summary()
-    print(f"\n⏱️  Total Pipeline Duration: {duration:.1f} minutes")
-    print("\n🎉 Training Pipeline Complete!")
-    
     return 0
 
 if __name__ == "__main__":
