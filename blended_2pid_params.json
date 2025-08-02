@@ -1,17 +1,17 @@
 {
   "low_gains": [
-    0.286,
-    0.094,
-    -0.088
+    0.423,
+    0.07,
+    -0.05
   ],
   "high_gains": [
-    0.155,
-    0.005,
-    -0.03
+    0.273,
+    0.025,
+    -0.032
   ],
-  "best_cost": 76.8050092470897,
+  "best_cost": 256.7943196019598,
   "baseline_cost": 106.9,
-  "improvement": 30.094990752910306,
+  "improvement": -149.89431960195978,
   "optimization_type": "comprehensive_blended_2pid",
   "num_combinations_tested": 300
 }

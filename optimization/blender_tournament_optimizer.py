@@ -102,7 +102,7 @@ def find_optimal_blend_weight(pid1_params, pid2_params, data_file, model):
     for blend in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:  # Simple discrete search
         # Create temporary controller with fixed blend weight
         controller_content = generate_blended_controller(pid1_params, pid2_params).replace(
-            'if v_ego < 40:', f'if False:  # Fixed blend weight: {blend}').replace(
+            'if v_ego < 40:  # Low speed: use 80% low + 20% high', f'if False:  # Fixed blend weight: {blend}').replace(
             'weights = [0.8, 0.2]', f'weights = [{blend}, {1-blend}]').replace(
             'weights = [0.2, 0.8]', f'weights = [{blend}, {1-blend}]')
         

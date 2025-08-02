@@ -32,9 +32,9 @@ class Controller(BaseController):
     """
     
     def __init__(self):
-        # Tournament winner parameters - cost: 58.95
-        self.low_speed_gains = [0.250, 0.120, -0.092]   # [P, I, D] for low speed
-        self.high_speed_gains = [0.203, 0.080, -0.098]  # [P, I, D] for high speed
+        # Tournament winner parameters - cost: 219.12
+        self.low_speed_gains = [0.575, 0.120, -0.050]   # [P, I, D] for low speed
+        self.high_speed_gains = [0.293, 0.080, -0.030]  # [P, I, D] for high speed
         
         # Velocity threshold for blended control (40 mph = 17.88 m/s)
         self.velocity_threshold = 17.88
@@ -46,7 +46,7 @@ class Controller(BaseController):
         self.high_prev_error = 0.0
         
         print(f"🏆 Tournament-Optimized Controller initialized")
-        print(f"   Winner cost: 58.95 (23% improvement)")
+        print(f"   Winner cost: 219.12 (Tournament #2 champion)")
         print(f"   Low-speed:  P={self.low_speed_gains[0]:.3f}, I={self.low_speed_gains[1]:.3f}, D={self.low_speed_gains[2]:.3f}")
         print(f"   High-speed: P={self.high_speed_gains[0]:.3f}, I={self.high_speed_gains[1]:.3f}, D={self.high_speed_gains[2]:.3f}")
     
