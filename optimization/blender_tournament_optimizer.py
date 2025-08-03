@@ -24,6 +24,28 @@ if parent_dir not in sys.path:
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from controllers.shared_pid import SpecializedPID
 
+
+def cleanup_artifacts() -> None:
+    """Remove leftover temporary controllers and blender models."""
+    base_dir = Path(__file__).parent.parent
+    controllers_dir = base_dir / "controllers"
+    models_dir = base_dir / "models"
+
+    for path in controllers_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in models_dir.glob("blender_*.onnx"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+cleanup_artifacts()
+
 def create_training_data_from_archive(archive_path, data_files, model, num_samples=5000):
     """
     Generate training data for BlenderNet from PID tournament archive
@@ -517,6 +539,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
     return best_ever_architecture
 
 def main():
+    cleanup_artifacts()
     parser = argparse.ArgumentParser(description='Blender Tournament Optimizer')
     
     parser.add_argument('--archive', type=str, default='plans/tournament_archive.json',

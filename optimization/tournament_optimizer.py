@@ -19,6 +19,28 @@ if parent_dir not in sys.path:
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from optimization import generate_blended_controller
 
+
+def cleanup_artifacts() -> None:
+    """Remove leftover temporary controllers and blender models."""
+    base_dir = Path(__file__).parent.parent
+    controllers_dir = base_dir / "controllers"
+    models_dir = base_dir / "models"
+
+    for path in controllers_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in models_dir.glob("blender_*.onnx"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+cleanup_artifacts()
+
 class ParameterSet:
     """Represents a set of blended 2-PID gains and metadata in a tournament."""
     def __init__(self, low_gains: List[float], high_gains: List[float]):
@@ -233,6 +255,7 @@ def run_tournament(
     (plans_dir / "tournament_archive.json").write_text(json.dumps({"archive": out}, indent=2))
 
 def main():
+    cleanup_artifacts()
     parser = argparse.ArgumentParser(description="Tournament optimizer for blended 2-PID controllers")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--pop_size", type=int, default=20)
