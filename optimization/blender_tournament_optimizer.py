@@ -24,6 +24,28 @@ if parent_dir not in sys.path:
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from controllers.shared_pid import SpecializedPID
 
+
+def cleanup_artifacts() -> None:
+    """Remove leftover temporary controllers and blender models."""
+    base_dir = Path(__file__).parent.parent
+    controllers_dir = base_dir / "controllers"
+    models_dir = base_dir / "models"
+
+    for path in controllers_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in models_dir.glob("blender_*.onnx"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+cleanup_artifacts()
+
 def create_training_data_from_archive(archive_path, data_files, model, num_samples=5000):
     """
     Generate training data for BlenderNet from PID tournament archive
@@ -285,12 +307,14 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
         if onnx_path and os.path.exists(onnx_path):
             os.remove(onnx_path)
 
-def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
-    """Create temporary neural controller using new pattern"""
+def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id, target_dir: Path):
+    """Create temporary neural controller in target_dir"""
     from optimization import generate_neural_blended_controller
 
     onnx_path = os.path.abspath(onnx_path)
+
     controller_content = generate_neural_blended_controller(pid1_params, pid2_params, onnx_path)
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
     module_name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
 
     with open(f"controllers/{module_name}.py", "w") as f:
@@ -298,11 +322,6 @@ def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
 
     return module_name
 
-def cleanup_temp_controller(module_name):
-    """Clean up temporary controller file"""
-    temp_path = f"controllers/{module_name}.py"
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
 
 def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json"):
     """Get top PID parameter pairs from tournament archive"""
@@ -523,6 +542,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
     return best_ever_architecture
 
 def main():
+    cleanup_artifacts()
     parser = argparse.ArgumentParser(description='Blender Tournament Optimizer')
     
     parser.add_argument('--archive', type=str, default='plans/tournament_archive.json',

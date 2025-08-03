@@ -9,6 +9,7 @@ import argparse
 from typing import List, Dict, Any, Optional
 import sys
 import os
+import tempfile
 
 # Add the parent directory to path to find tinyphysics
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,28 @@ if parent_dir not in sys.path:
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from optimization import generate_blended_controller
+
+
+def cleanup_artifacts() -> None:
+    """Remove leftover temporary controllers and blender models."""
+    base_dir = Path(__file__).parent.parent
+    controllers_dir = base_dir / "controllers"
+    models_dir = base_dir / "models"
+
+    for path in controllers_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in models_dir.glob("blender_*.onnx"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+cleanup_artifacts()
 
 class ParameterSet:
     """Represents a set of blended 2-PID gains and metadata in a tournament."""
@@ -53,49 +76,47 @@ def extract_gains_from_champion(champion: Dict) -> tuple:
     """Extract low_gains and high_gains from either format"""
     return champion['low_gains'], champion['high_gains']
 
-def _make_temp_controller(ps: ParameterSet) -> str:
-    """Generate temporary controller file for evaluation."""
+def _make_temp_controller(ps: ParameterSet, target_dir: Path) -> str:
+    """Generate temporary controller file for evaluation inside target_dir."""
     content = generate_blended_controller(ps.low_gains, ps.high_gains)
-    controllers_dir = Path(__file__).parent.parent / "controllers"
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
     module_name = f"temp_{ps.id.replace('-', '')}"
-    file_path = controllers_dir / f"{module_name}.py"
+    file_path = Path(target_dir) / f"{module_name}.py"
     with open(file_path, "w") as f:
         f.write(content)
     return module_name
 
-def cleanup_controllers(prefix: str = "temp_") -> None:
-    """Remove temporary controller files."""
-    controllers_dir = Path(__file__).parent.parent / "controllers"
-    for path in controllers_dir.glob(f"{prefix}*.py"):
-        try:
-            path.unlink()
-        except:
-            pass
-
 def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, max_files: int, rng: Optional[np.random.Generator] = None) -> None:
     """Evaluate a ParameterSet and populate its stats."""
-    import sys
-    mod = _make_temp_controller(ps)
-    full_module = f"controllers.{mod}"
-    if full_module in sys.modules:
-        del sys.modules[full_module]
+    import controllers
+
     total_costs = []
-    try:
-        # Sample a random subset of files for each evaluation
-        if rng is not None:
-            selected = rng.choice(data_files, size=min(max_files, len(data_files)), replace=False)
-        else:
-            selected = data_files[:max_files]
-        
-        for file in selected:
-            cost, _, _ = run_rollout(file, mod, model, debug=False)
-            total_costs.append(cost["total_cost"])
-    except:
-        pass
-    finally:
-        cleanup_controllers(prefix=f"temp_{ps.id.replace('-', '')}")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        sys.path.append(tmp_dir)
+        controllers.__path__.append(tmp_dir)
+
+        mod = _make_temp_controller(ps, Path(tmp_dir))
+        full_module = f"controllers.{mod}"
         if full_module in sys.modules:
             del sys.modules[full_module]
+
+        try:
+            if rng is not None:
+                selected = rng.choice(data_files, size=min(max_files, len(data_files)), replace=False)
+            else:
+                selected = data_files[:max_files]
+
+            for file in selected:
+                cost, _, _ = run_rollout(file, mod, model, debug=False)
+                total_costs.append(cost["total_cost"])
+        except Exception:
+            pass
+        finally:
+            if full_module in sys.modules:
+                del sys.modules[full_module]
+            controllers.__path__.remove(tmp_dir)
+            sys.path.remove(tmp_dir)
+
     if total_costs:
         arr = np.array(total_costs)
         ps.stats = {
@@ -233,6 +254,7 @@ def run_tournament(
     (plans_dir / "tournament_archive.json").write_text(json.dumps({"archive": out}, indent=2))
 
 def main():
+    cleanup_artifacts()
     parser = argparse.ArgumentParser(description="Tournament optimizer for blended 2-PID controllers")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--pop_size", type=int, default=20)
