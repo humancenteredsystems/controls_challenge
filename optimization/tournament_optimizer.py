@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Optional
 import sys
 import os
 import logging
+import tempfile
+
 
 # Add the parent directory to path to find tinyphysics
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +19,28 @@ if parent_dir not in sys.path:
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from optimization import generate_blended_controller
+
+
+def cleanup_artifacts() -> None:
+    """Remove leftover temporary controllers and blender models."""
+    base_dir = Path(__file__).parent.parent
+    controllers_dir = base_dir / "controllers"
+    models_dir = base_dir / "models"
+
+    for path in controllers_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    for path in models_dir.glob("blender_*.onnx"):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+cleanup_artifacts()
 
 class ParameterSet:
     """Represents a set of blended 2-PID gains and metadata in a tournament."""
@@ -59,8 +83,9 @@ def _make_temp_controller(ps: ParameterSet) -> str:
         RuntimeError: If the controller file cannot be written.
     """
     content = generate_blended_controller(ps.low_gains, ps.high_gains)
-    controllers_dir = Path(__file__).parent.parent / "controllers"
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
     module_name = f"temp_{ps.id.replace('-', '')}"
+
     file_path = controllers_dir / f"{module_name}.py"
     try:
         with open(file_path, "w") as f:
@@ -245,6 +270,7 @@ def run_tournament(
     (plans_dir / "tournament_archive.json").write_text(json.dumps({"archive": out}, indent=2))
 
 def main():
+    cleanup_artifacts()
     parser = argparse.ArgumentParser(description="Tournament optimizer for blended 2-PID controllers")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--pop_size", type=int, default=20)

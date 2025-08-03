@@ -27,7 +27,8 @@ def test_neural_blended_controller():
     
     print(f"Tournament #2 Winner:")
     print(f"  Cost: {best_performer['stats']['avg_total_cost']:.2f}")
-    print(f"  Min Cost: {best_performer['stats']['min_cost']:.2f}")
+    if 'min_cost' in best_performer['stats']:
+        print(f"  Min Cost: {best_performer['stats']['min_cost']:.2f}")
     print(f"  Low-speed PID:  P={best_performer['low_gains'][0]:.3f}, I={best_performer['low_gains'][1]:.3f}, D={best_performer['low_gains'][2]:.3f}")
     print(f"  High-speed PID: P={best_performer['high_gains'][0]:.3f}, I={best_performer['high_gains'][1]:.3f}, D={best_performer['high_gains'][2]:.3f}")
     
@@ -54,8 +55,6 @@ class Controller(BaseNeuralController):
         f.write(controller_content)
     
     print(f"✅ Test controller saved to: {temp_controller_path}")
-    
-    return best_performer
 
 def create_summary_report():
     """Create summary report of the neural blender optimization process"""
@@ -88,31 +87,34 @@ def create_summary_report():
     
     # Archive analysis
     archive_path = "plans/tournament_archive.json"
+    costs = []
     if Path(archive_path).exists():
         with open(archive_path, 'r') as f:
             archive = json.load(f)
         
         valid_performers = [p for p in archive['archive'] if 'stats' in p and 'avg_total_cost' in p['stats']]
         costs = [p['stats']['avg_total_cost'] for p in valid_performers]
-        min_costs = [p['stats']['min_cost'] for p in valid_performers]
+        min_costs = [p['stats'].get('min_cost', 0) for p in valid_performers]
         
         print(f"\n📈 PID Tournament Performance:")
         print(f"   Valid combinations: {len(valid_performers)}")
-        print(f"   Best average cost: {min(costs):.2f}")
-        print(f"   Best minimum cost: {min(min_costs):.2f}")
-        print(f"   Performance range: {min(costs):.2f} - {max(costs):.2f}")
+        if costs:
+            print(f"   Best average cost: {min(costs):.2f}")
+            print(f"   Best minimum cost: {min(min_costs):.2f}")
+            print(f"   Performance range: {min(costs):.2f} - {max(costs):.2f}")
     
     print(f"\n🎯 Current Status:")
     print(f"   ✅ Neural blender architecture implemented")
     print(f"   ✅ Training data generation working")
-    print(f"   ✅ Tournament #2 winner identified (cost: {min(costs):.2f})")
+    if costs:
+        print(f"   ✅ Tournament #2 winner identified (cost: {min(costs):.2f})")
     print(f"   ⚠️  Neural tournament evaluation needs debugging")
     print(f"   🎯 Ready for simplified neural blending approach")
 
 if __name__ == "__main__":
     try:
         # Test the neural blended controller
-        best_performer = test_neural_blended_controller()
+        test_neural_blended_controller()
         
         # Create summary report
         create_summary_report()
@@ -124,7 +126,6 @@ if __name__ == "__main__":
         print(f"   4. Compare performance vs Tournament #2 winner")
         
         print(f"\n✅ Neural blender infrastructure is ready!")
-        print(f"💡 Tournament #2 winner (cost: {best_performer['stats']['avg_total_cost']:.2f}) provides strong baseline")
         
     except Exception as e:
         print(f"❌ Error: {e}")
