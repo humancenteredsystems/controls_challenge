@@ -14,6 +14,7 @@ import hashlib
 import tempfile
 from pathlib import Path
 from collections import defaultdict
+import logging
 
 # Add parent directory to path to find tinyphysics
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -257,22 +258,25 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     
     for data_file in eval_files:
         for pid1_params, pid2_params in pid_pairs[:3]:  # Top 3 PID pairs
-            
-            # Create temporary neural controller using new pattern
-            controller_module = _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, architecture['id'])
-            
+
+            controller_module = None
             try:
+                # Create temporary neural controller using new pattern
+                controller_module = _make_temp_neural_controller(
+                    pid1_params, pid2_params, onnx_path, architecture['id']
+                )
                 # Evaluate using existing run_rollout pattern
                 cost, _, _ = run_rollout(data_file, controller_module, model)
                 total_costs.append(cost["total_cost"])
-                
+
             except Exception as e:
                 print(f"    Evaluation failed: {e}")
                 total_costs.append(1000)  # Penalty for failed evaluation
-                
+
             finally:
                 # Clean up temporary controller
-                cleanup_temp_controller(controller_module)
+                if controller_module:
+                    cleanup_temp_controller(controller_module)
     
     neural_cost = np.mean(total_costs) if total_costs else 1000
     
@@ -281,15 +285,22 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     return neural_cost
 
 def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
-    """Create temporary neural controller using new pattern"""
+    """Create temporary neural controller using new pattern.
+
+    Raises:
+        RuntimeError: If the controller file cannot be written.
+    """
     from optimization import generate_neural_blended_controller
-    
+
     controller_content = generate_neural_blended_controller(pid1_params, pid2_params, onnx_path)
     module_name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
-    
-    with open(f"controllers/{module_name}.py", "w") as f:
-        f.write(controller_content)
-    
+    file_path = Path("controllers") / f"{module_name}.py"
+    try:
+        with open(file_path, "w") as f:
+            f.write(controller_content)
+    except OSError as e:
+        raise RuntimeError(f"Failed to write temporary neural controller {file_path}: {e}") from e
+
     return module_name
 
 def cleanup_temp_controller(module_name):

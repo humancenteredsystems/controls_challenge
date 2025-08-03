@@ -1,6 +1,4 @@
-"""
-GPU-optimized tournament optimizer using proven blended 2-PID architecture
-"""
+"""GPU-optimized tournament optimizer using proven blended 2-PID architecture"""
 import uuid
 import numpy as np
 import json
@@ -9,6 +7,7 @@ import argparse
 from typing import List, Dict, Any, Optional
 import sys
 import os
+import logging
 
 # Add the parent directory to path to find tinyphysics
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,13 +53,20 @@ def extract_gains_from_champion(champion: Dict) -> tuple:
     return champion['low_gains'], champion['high_gains']
 
 def _make_temp_controller(ps: ParameterSet) -> str:
-    """Generate temporary controller file for evaluation."""
+    """Generate temporary controller file for evaluation.
+
+    Raises:
+        RuntimeError: If the controller file cannot be written.
+    """
     content = generate_blended_controller(ps.low_gains, ps.high_gains)
     controllers_dir = Path(__file__).parent.parent / "controllers"
     module_name = f"temp_{ps.id.replace('-', '')}"
     file_path = controllers_dir / f"{module_name}.py"
-    with open(file_path, "w") as f:
-        f.write(content)
+    try:
+        with open(file_path, "w") as f:
+            f.write(content)
+    except OSError as e:
+        raise RuntimeError(f"Failed to write temporary controller {file_path}: {e}") from e
     return module_name
 
 def cleanup_controllers(prefix: str = "temp_") -> None:
@@ -72,30 +78,36 @@ def cleanup_controllers(prefix: str = "temp_") -> None:
         except:
             pass
 
-def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, max_files: int, rng: Optional[np.random.Generator] = None) -> None:
+def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, max_files: int,
+             rng: Optional[np.random.Generator] = None) -> None:
     """Evaluate a ParameterSet and populate its stats."""
     import sys
-    mod = _make_temp_controller(ps)
-    full_module = f"controllers.{mod}"
-    if full_module in sys.modules:
-        del sys.modules[full_module]
-    total_costs = []
+
+    module_name: Optional[str] = None
+    full_module: Optional[str] = None
+    total_costs: List[float] = []
     try:
+        module_name = _make_temp_controller(ps)
+        full_module = f"controllers.{module_name}"
+        if full_module in sys.modules:
+            del sys.modules[full_module]
+
         # Sample a random subset of files for each evaluation
         if rng is not None:
             selected = rng.choice(data_files, size=min(max_files, len(data_files)), replace=False)
         else:
             selected = data_files[:max_files]
-        
+
         for file in selected:
-            cost, _, _ = run_rollout(file, mod, model, debug=False)
+            cost, _, _ = run_rollout(file, module_name, model, debug=False)
             total_costs.append(cost["total_cost"])
-    except:
-        pass
+    except Exception as e:
+        logging.error("Evaluation failed for %s: %s", ps.id, e)
     finally:
         cleanup_controllers(prefix=f"temp_{ps.id.replace('-', '')}")
-        if full_module in sys.modules:
+        if full_module and full_module in sys.modules:
             del sys.modules[full_module]
+
     if total_costs:
         arr = np.array(total_costs)
         ps.stats = {
