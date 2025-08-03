@@ -9,6 +9,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+def cleanup_previous_runs():
+    """Remove artifacts from previous tournament runs."""
+    files_to_remove = [
+        Path("blended_2pid_comprehensive_results.json"),
+        Path("plans/tournament_archive.json"),
+        Path("plans/blender_training_data.json"),
+        Path("plans/blender_tournament_results.json"),
+        Path("models/neural_blender_champion.onnx"),
+        Path("controllers/neural_blended_champion.py"),
+    ]
+    for path in files_to_remove:
+        if path.exists():
+            try:
+                path.unlink()
+                print(f"🧹 Removed previous file: {path}")
+            except Exception as e:
+                print(f"⚠️ Could not remove {path}: {e}")
+
 def run_tournament_1():
     """Run Tournament #1 - initial optimization"""
     print("🏆 Starting Tournament #1: Initial Optimization")
@@ -65,6 +83,7 @@ def run_tournament_2():
 
 def main():
     """Run two-stage tournament optimization"""
+    cleanup_previous_runs()
     print("Starting Two-Stage Tournament Optimization")
     print("Stage 1: Initial optimization on data subset")
     print("Stage 2: Champions compete on full dataset")
