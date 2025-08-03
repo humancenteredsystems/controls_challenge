@@ -72,7 +72,7 @@ def cleanup_controllers(prefix: str = "temp_") -> None:
         except:
             pass
 
-def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, max_files: int) -> None:
+def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, max_files: int, rng: Optional[np.random.Generator] = None) -> None:
     """Evaluate a ParameterSet and populate its stats."""
     import sys
     mod = _make_temp_controller(ps)
@@ -81,7 +81,13 @@ def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, m
         del sys.modules[full_module]
     total_costs = []
     try:
-        for file in data_files[:max_files]:
+        # Sample a random subset of files for each evaluation
+        if rng is not None:
+            selected = rng.choice(data_files, size=min(max_files, len(data_files)), replace=False)
+        else:
+            selected = data_files[:max_files]
+        
+        for file in selected:
             cost, _, _ = run_rollout(file, mod, model, debug=False)
             total_costs.append(cost["total_cost"])
     except:
@@ -182,9 +188,18 @@ def run_tournament(
     init_low_max: List[float],
     init_high_min: List[float],
     init_high_max: List[float],
-    init_seed: Optional[int]
+    init_seed: Optional[int],
+    data_seed: Optional[int] = None
 ) -> None:
     model = TinyPhysicsModel(model_path, debug=False)
+    
+    # Create RNG for data sampling
+    rng = np.random.default_rng(data_seed)
+    
+    # Shuffle data files once at the start
+    data_files_copy = data_files.copy()
+    rng.shuffle(data_files_copy)
+    
     population = initialize_population(
         pop_size,
         seed_from_archive,
@@ -198,7 +213,7 @@ def run_tournament(
     best_cost = float("inf")
     for r in range(1, rounds+1):
         for ps in population:
-            evaluate(ps, data_files, model, max_files)
+            evaluate(ps, data_files_copy, model, max_files, rng)
         elites = select_elites(population, elite_pct)
         revived = revival_lottery(archive, revive_pct, pop_size)
         best = min(elites, key=lambda ps: ps.stats.get("avg_total_cost", float("inf")))
@@ -226,6 +241,8 @@ def main():
     parser.add_argument("--max_files", type=int, default=25)
     parser.add_argument("--perturb_scale", type=float, default=0.05)
     parser.add_argument("--seed_from_archive", type=str, default=None)
+    parser.add_argument("--data-seed", "--data_seed", dest="data_seed", type=int, default=None,
+                        help="Seed for shuffling data files (omit for non-deterministic)")
     parser.add_argument(
         "--init_low_min", type=lambda s: list(map(float, s.split(","))),
         default=[0.25, 0.01, -0.25]
@@ -261,7 +278,8 @@ def main():
         args.init_low_max,
         args.init_high_min,
         args.init_high_max,
-        args.init_seed
+        args.init_seed,
+        args.data_seed
     )
 
 if __name__ == "__main__":

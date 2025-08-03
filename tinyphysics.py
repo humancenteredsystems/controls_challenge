@@ -211,12 +211,15 @@ class TinyPhysicsSimulator:
 
 
 def get_available_controllers():
-  return [f.stem for f in Path('controllers').iterdir() if f.is_file() and f.suffix == '.py' and f.stem != '__init__']
+  return [f.stem for f in Path('controllers').iterdir() if f.is_file() and f.suffix == '.py' and f.stem not in ['__init__', 'shared_pid']]
 
 
-def run_rollout(data_path, controller_type, model_path, debug=False):
+def run_rollout(data_path, controller_type, model_path, debug=False, blender_model_path=None):
   tinyphysicsmodel = TinyPhysicsModel(model_path, debug=debug)
-  controller = importlib.import_module(f'controllers.{controller_type}').Controller()
+  if controller_type == 'neural_blended':
+      controller = importlib.import_module(f'controllers.{controller_type}').Controller(blender_model_path=blender_model_path)
+  else:
+      controller = importlib.import_module(f'controllers.{controller_type}').Controller()
   sim = TinyPhysicsSimulator(tinyphysicsmodel, str(data_path), controller=controller, debug=debug)
   return sim.rollout(), sim.target_lataccel_history, sim.current_lataccel_history
 
@@ -233,33 +236,46 @@ def download_dataset():
 
 
 if __name__ == "__main__":
-  available_controllers = get_available_controllers()
-  parser = argparse.ArgumentParser()
-  parser.add_argument("--model_path", type=str, required=True)
-  parser.add_argument("--data_path", type=str, required=True)
-  parser.add_argument("--num_segs", type=int, default=100)
-  parser.add_argument("--debug", action='store_true')
-  parser.add_argument("--controller", default='pid', choices=available_controllers)
-  args = parser.parse_args()
+    available_controllers = get_available_controllers()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_path", type=str, required=True)
+    parser.add_argument("--data_path", type=str, required=True)
+    parser.add_argument("--num_segs", type=int, default=100)
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--blender_model_path", type=str, default=None, help="Path to BlenderNet ONNX model for neural_blended controller")
+    parser.add_argument("--controller", default="pid", choices=available_controllers)
+    args = parser.parse_args()
 
-  if not DATASET_PATH.exists():
-    download_dataset()
+    if not DATASET_PATH.exists():
+        download_dataset()
 
-  data_path = Path(args.data_path)
-  if data_path.is_file():
-    cost, _, _ = run_rollout(data_path, args.controller, args.model_path, debug=args.debug)
-    print(f"\nAverage lataccel_cost: {cost['lataccel_cost']:>6.4}, average jerk_cost: {cost['jerk_cost']:>6.4}, average total_cost: {cost['total_cost']:>6.4}")
-  elif data_path.is_dir():
-    run_rollout_partial = partial(run_rollout, controller_type=args.controller, model_path=args.model_path, debug=False)
-    files = sorted(data_path.iterdir())[:args.num_segs]
-    results = process_map(run_rollout_partial, files, max_workers=16, chunksize=10)
-    costs = [result[0] for result in results]
-    costs_df = pd.DataFrame(costs)
-    print(f"\nAverage lataccel_cost: {np.mean(costs_df['lataccel_cost']):>6.4}, average jerk_cost: {np.mean(costs_df['jerk_cost']):>6.4}, average total_cost: {np.mean(costs_df['total_cost']):>6.4}")
-    for cost in costs_df.columns:
-      plt.hist(costs_df[cost], bins=np.arange(0, 1000, 10), label=cost, alpha=0.5)
-    plt.xlabel('costs')
-    plt.ylabel('Frequency')
-    plt.title('costs Distribution')
-    plt.legend()
-    plt.show()
+    data_path = Path(args.data_path)
+    if data_path.is_file():
+        cost, _, _ = run_rollout(
+            data_path,
+            args.controller,
+            args.model_path,
+            debug=args.debug,
+            blender_model_path=args.blender_model_path,
+        )
+        print(f"\nAverage lataccel_cost: {cost['lataccel_cost']:>6.4}, average jerk_cost: {cost['jerk_cost']:>6.4}, average total_cost: {cost['total_cost']:>6.4}")
+    elif data_path.is_dir():
+        run_rollout_partial = partial(
+            run_rollout,
+            controller_type=args.controller,
+            model_path=args.model_path,
+            debug=False,
+            blender_model_path=args.blender_model_path,
+        )
+        files = sorted(data_path.iterdir())[:args.num_segs]
+        results = process_map(run_rollout_partial, files, max_workers=16, chunksize=10)
+        costs = [result[0] for result in results]
+        costs_df = pd.DataFrame(costs)
+        print(f"\nAverage lataccel_cost: {np.mean(costs_df['lataccel_cost']):>6.4}, average jerk_cost: {np.mean(costs_df['jerk_cost']):>6.4}, average total_cost: {np.mean(costs_df['total_cost']):>6.4}")
+        for cost_name in costs_df.columns:
+            plt.hist(costs_df[cost_name], bins=np.arange(0, 1000, 10), label=cost_name, alpha=0.5)
+        plt.xlabel("costs")
+        plt.ylabel("Frequency")
+        plt.title("Costs Distribution")
+        plt.legend()
+        plt.show()

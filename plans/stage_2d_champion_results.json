@@ -1,0 +1,32 @@
+{
+  "champion_cost": 630.3200405454987,
+  "tournament_2_baseline": 1578.1123490057257,
+  "improvement": 947.792308460227,
+  "best_architecture": {
+    "hidden_sizes": [
+      32,
+      24,
+      24
+    ],
+    "dropout_rate": 0.1,
+    "id": "633973cd",
+    "cost": 630.3200405454987
+  },
+  "best_pid_params": {
+    "low_gains": [
+      0.34,
+      0.027,
+      -0.074
+    ],
+    "high_gains": [
+      0.291,
+      0.006,
+      -0.057
+    ]
+  },
+  "tournament_config": {
+    "rounds": 1,
+    "pop_size": 5,
+    "max_files": 5
+  }
+}

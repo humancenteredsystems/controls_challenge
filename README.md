@@ -27,6 +27,9 @@ pip install -r requirements.txt
 
 # test this works
 python tinyphysics.py --model_path ./models/tinyphysics.onnx --data_path ./data/00000.csv --debug --controller pid 
+
+# for neural_blended controller, you need to provide the blender model path
+# python tinyphysics.py --model_path ./models/tinyphysics.onnx --data_path ./data/00000.csv --controller neural_blended --blender_model_path ./path/to/blender.onnx
 ```
 
 There are some other scripts to help you get aggregate metrics: 

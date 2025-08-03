@@ -168,11 +168,15 @@ class Controller(BaseController):
             except Exception as e:
                 print(f"Error combo {i}: {e}")
         results.sort(key=lambda x: x["avg_total_cost"])
-        return {"best_cost":self.best_cost,
-                "best_params":{"low":self.best_params[0],"high":self.best_params[1]},
-                "all_results":results,
-                "tested":len(results),"attempted":len(combos),
-                "success_rate":len(results)/len(combos) if combos else 0}
+        return {"best_cost": self.best_cost,
+                "best_params": {
+                    "low": self.best_params[0] if self.best_params is not None else None,
+                    "high": self.best_params[1] if self.best_params is not None else None
+                },
+                "all_results": results,
+                "tested": len(results),
+                "attempted": len(combos),
+                "success_rate": len(results) / len(combos) if combos else 0}
     
     def save_comprehensive_results(self, results: Dict[str, Any], 
                                    filename: str = "blended_2pid_comprehensive_results.json"):
@@ -201,12 +205,18 @@ def main():
                         help="Override path to tinyphysics model")
     parser.add_argument("--data_dir", type=str, default=None,
                         help="Override path to directory containing *.csv data")
+    parser.add_argument("--data-seed", "--data_seed", dest="data_seed", type=int, default=None,
+                        help="Seed for shuffling data files (omit for non-deterministic)")
     args = parser.parse_args()
     
     base_dir = Path(__file__).parent.parent
     model_path = args.model_path if args.model_path else str(base_dir/"models"/"tinyphysics.onnx")
     data_dir = Path(args.data_dir) if args.data_dir else base_dir/"data"
-    data_files = [str(f) for f in sorted(data_dir.glob("*.csv"))[:args.num_files]]
+    data_files = [str(f) for f in data_dir.glob("*.csv")]
+    data_files.sort()
+    rng = np.random.default_rng(args.data_seed)
+    rng.shuffle(data_files)
+    data_files = data_files[:args.num_files]
     
     print(f"Found {len(data_files)} data files")
     optimizer = Blended2PIDOptimizer(model_path)

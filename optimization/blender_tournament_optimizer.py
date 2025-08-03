@@ -22,6 +22,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
+from controllers.shared_pid import SpecializedPID
 
 def create_training_data_from_archive(archive_path, data_files, model, num_samples=5000):
     """
@@ -41,10 +42,13 @@ def create_training_data_from_archive(archive_path, data_files, model, num_sampl
     with open(archive_path, 'r') as f:
         archive = json.load(f)
     
-    # Get top performing PID combinations (top 10)
-    top_performers = sorted(archive['archive'][:20],
-                           key=lambda x: x['stats']['min_cost'])[:10]
-    
+    # Get top performing PID combinations (top 10), skip entries without avg_total_cost
+    entries = archive.get('archive', [])[:20]
+    valid_performers = [e for e in entries if isinstance(e.get('stats'), dict) and 'avg_total_cost' in e['stats']]
+    if valid_performers:
+        top_performers = sorted(valid_performers, key=lambda x: x['stats']['avg_total_cost'])[:10]
+    else:
+        top_performers = entries[:10]
     print(f"Using top {len(top_performers)} PID combinations for training data")
     
     training_samples = []
@@ -54,7 +58,7 @@ def create_training_data_from_archive(archive_path, data_files, model, num_sampl
         pid1_params = combo['low_gains']
         pid2_params = combo['high_gains']
         
-        print(f"  Processing combo {i+1}/{len(top_performers)}: cost={combo['stats']['min_cost']:.2f}")
+        print(f"  Processing combo {i+1}/{len(top_performers)}: avg_cost={combo['stats']['avg_total_cost']:.2f}")
         
         # Generate samples for this PID combination
         samples = generate_samples_for_pid_combo(pid1_params, pid2_params,
@@ -73,22 +77,41 @@ def create_training_data_from_archive(archive_path, data_files, model, num_sampl
 
 def generate_samples_for_pid_combo(pid1_params, pid2_params, num_samples, data_files, model):
     """Generate training samples via optimal blend weight discovery using existing run_rollout()"""
+    pid1 = SpecializedPID(pid1_params[0], pid1_params[1], pid1_params[2], name="PID1")
+    pid2 = SpecializedPID(pid2_params[0], pid2_params[1], pid2_params[2], name="PID2")
     samples = []
-    
+    dt = 0.1
+
     for _ in range(num_samples):
+        pid1.reset()
+        pid2.reset()
         data_file = random.choice(data_files)
-        
+
         # Find optimal blend weight using existing infrastructure
         best_blend = find_optimal_blend_weight(pid1_params, pid2_params, data_file, model)
-        
-        # Extract features using existing state extraction
+
+        # Extract features: state and simulated error
         state, error, future_plan = extract_state_from_file(data_file)
-        features = [state.v_ego, state.roll_lataccel, state.a_ego, error, 0, 0,
-                   np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
-                   np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0]
-        
+
+        # Compute PID internal states
+        error_integral = error * dt
+        error_diff = (error - pid1.prev_error) / dt
+        pid1.update(error)
+
+        # Build feature vector with real PID stats
+        features = [
+            state.v_ego,
+            state.roll_lataccel,
+            state.a_ego,
+            error,
+            error_integral,
+            error_diff,
+            np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
+            np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0
+        ]
+
         samples.append((features, best_blend))
-    
+
     return samples
 
 def find_optimal_blend_weight(pid1_params, pid2_params, data_file, model):
@@ -230,7 +253,7 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     total_costs = []
     
     # Evaluate on subset of data files
-    eval_files = data_files[:max_files]
+    eval_files = random.sample(data_files, k=min(max_files, len(data_files)))
     
     for data_file in eval_files:
         for pid1_params, pid2_params in pid_pairs[:3]:  # Top 3 PID pairs
@@ -372,7 +395,7 @@ def mutate_architecture(parent, mutation_rate=0.2):
     
     return child
 
-def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_size=20, max_files=20):
+def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_size=20, max_files=20, samples_per_combo=50):
     """
     Run tournament optimization for BlenderNet architectures - targeting leaderboard performance
     
@@ -399,7 +422,7 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=15, pop_
     print("Blender tournament: GPU ENABLED")
     
     # Generate training data from PID archive
-    training_data = create_training_data_from_archive(archive_path, data_files, model)
+    training_data = create_training_data_from_archive(archive_path, data_files, model, num_samples=samples_per_combo)
     
     # Initialize population with random architectures
     population = []
@@ -509,8 +532,17 @@ def main():
                        help='Maximum files per evaluation')
     parser.add_argument('--model_path', type=str, default='models/tinyphysics.onnx',
                        help='Path to TinyPhysics model')
+    parser.add_argument('--data-seed', '--data_seed', dest='data_seed', type=int, default=None,
+                       help='Seed for shuffling data files (omit for non-deterministic)')
+    parser.add_argument('--samples-per-combo', type=int, default=50,
+                       help='Number of CSV files to randomly sample per PID combo for training data')
     
     args = parser.parse_args()
+    
+    # Seed random number generators if data_seed is provided
+    if args.data_seed is not None:
+        random.seed(args.data_seed)
+        np.random.seed(args.data_seed)
     
     # Get data files
     data_files = []
@@ -523,12 +555,15 @@ def main():
         print("No data files found!")
         return 1
     
+    # Shuffle data files after loading
+    random.shuffle(data_files)
+    
     print(f"Found {len(data_files)} data files")
     
     # Run blender tournament
     best_architecture = run_blender_tournament(
         args.archive, data_files, args.model_path,
-        args.rounds, args.pop_size, args.max_files
+        args.rounds, args.pop_size, args.max_files, args.samples_per_combo
     )
     
     return 0

@@ -316,12 +316,25 @@ Optimization Complete → Cleanup GPU Session → Resource Deallocation
 2. Optimizer → Generate Parameter Combinations
 3. For Each Combination:
    a. Optimizer → Create Temporary Controller
-   b. Optimizer → Call run_rollout(data, controller, MODEL_INSTANCE)
+   b. Optimizer → Call run_rollout(data, controller, MODEL_INSTANCE, blender_model_path)
    c. run_rollout → TinyPhysicsSimulator(REUSED_MODEL, data, controller)
    d. Simulator → Model Inference (GPU Accelerated)
    e. Simulator → Return Cost Metrics
 4. Optimizer → Statistical Analysis and Results
 5. Optimizer → Model Cleanup (GPU Session Destroyed)
+```
+
+**Neural Blended Controller Integration:**
+```
+tinyphysics.py --controller neural_blended --blender_model_path path/to/blender.onnx
+    ↓
+run_rollout() detects neural_blended controller type
+    ↓
+Controller(blender_model_path=blender_model_path) instantiation
+    ↓
+Neural blended controller loads both PID parameters and BlenderNet ONNX model
+    ↓
+Hybrid control: PID baseline + neural network corrections
 ```
 
 **Two-Stage Tournament Optimization Flow:**

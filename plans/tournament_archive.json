@@ -3,544 +3,164 @@
     {
       "id": "champion_0",
       "low_gains": [
-        0.575,
-        0.12,
-        -0.05
+        0.34,
+        0.027,
+        -0.074
       ],
       "high_gains": [
-        0.293,
-        0.08,
-        -0.03
+        0.291,
+        0.006,
+        -0.057
       ],
       "stats": {
-        "avg_total_cost": 219.11531363300364,
-        "std_cost": 181.60536071959083,
-        "min_cost": 18.598213265363203,
-        "max_cost": 744.6033596418999,
-        "num_files": 12
-      },
-      "rounds_survived": 3,
-      "status": "active"
+        "avg_total_cost": 1578.1123490057257,
+        "std_cost": 694.780227821501,
+        "min_cost": 623.5777253186349,
+        "max_cost": 2604.971687318034,
+        "num_files": 10
+      }
     },
     {
       "id": "champion_1",
       "low_gains": [
-        0.423,
-        0.07,
-        -0.05
+        0.332,
+        0.046,
+        -0.102
       ],
       "high_gains": [
-        0.273,
-        0.025,
-        -0.032
+        0.368,
+        0.022,
+        -0.096
       ],
       "stats": {
-        "avg_total_cost": 248.65629730887642,
-        "std_cost": 133.90913006724304,
-        "min_cost": 26.686593664003727,
-        "max_cost": 451.2468643765626,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+        "avg_total_cost": 2911.896064863654,
+        "std_cost": 538.4194633501079,
+        "min_cost": 2296.7790315219163,
+        "max_cost": 4318.192254401401,
+        "num_files": 10
+      }
     },
     {
-      "id": "champion_2",
+      "id": "7d3d0ee3-80ce-464f-b71f-3767c3b5a9cf",
       "low_gains": [
-        0.382,
-        0.079,
-        -0.05
+        0.307,
+        0.101,
+        -0.197
       ],
       "high_gains": [
-        0.234,
-        0.019,
-        -0.03
+        0.392,
+        0.048,
+        -0.038
       ],
       "stats": {
-        "avg_total_cost": 259.6326337564623,
-        "std_cost": 137.27646572858643,
-        "min_cost": 22.401145207891574,
-        "max_cost": 448.7893872915204,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+        "avg_total_cost": 4413.32482092739,
+        "std_cost": 375.95474965490746,
+        "min_cost": 4022.5308650497004,
+        "max_cost": 5202.319022095246,
+        "num_files": 10
+      }
     },
     {
-      "id": "champion_3",
+      "id": "094feb39-a380-45df-97ed-896b3a09832f",
       "low_gains": [
-        0.561,
-        0.12,
-        -0.05
+        0.589,
+        0.029,
+        -0.219
       ],
       "high_gains": [
-        0.4,
-        0.005,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 243.9038022193018,
-        "std_cost": 223.19462947936677,
-        "min_cost": 20.419467635407678,
-        "max_cost": 910.4190536634815,
-        "num_files": 12
-      },
-      "rounds_survived": 3,
-      "status": "active"
-    },
-    {
-      "id": "fc316c5b-9cb8-4214-b322-1e8d487d3da5",
-      "low_gains": [
-        0.381,
-        0.115,
-        -0.104
-      ],
-      "high_gains": [
-        0.3,
-        0.017,
-        -0.131
-      ],
-      "stats": {
-        "avg_total_cost": 2565.6133256402672,
-        "std_cost": 512.1360123759838,
-        "min_cost": 1516.5247505624711,
-        "max_cost": 3434.54720445123,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "2dd47584-ecc9-4437-a4a8-fcdaf32117ea",
-      "low_gains": [
-        0.27,
-        0.105,
+        0.341,
+        0.06,
         -0.13
       ],
-      "high_gains": [
-        0.327,
-        0.007,
-        -0.034
-      ],
       "stats": {
-        "avg_total_cost": 2664.47045752934,
-        "std_cost": 570.9145883307499,
-        "min_cost": 1517.5318719845286,
-        "max_cost": 3431.1381653954677,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+        "avg_total_cost": 8337.414356531337,
+        "std_cost": 1235.0226727659751,
+        "min_cost": 6232.683765703389,
+        "max_cost": 9827.19489829977,
+        "num_files": 10
+      }
     },
     {
-      "id": "8efe71fe-6818-465e-878c-5d1be2ed0f27",
+      "id": "eed622fc-4db9-4fc6-91a9-f0d8d12c0532",
       "low_gains": [
-        0.541,
-        0.033,
-        -0.214
+        0.459,
+        0.034,
+        -0.164
       ],
       "high_gains": [
-        0.196,
-        0.028,
-        -0.087
+        0.256,
+        0.02,
+        -0.102
       ],
       "stats": {
-        "avg_total_cost": 5606.976708315058,
-        "std_cost": 1365.945742037349,
-        "min_cost": 2890.233123651859,
-        "max_cost": 7805.720010706684,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+        "avg_total_cost": 3974.2132725610595,
+        "std_cost": 638.461848119189,
+        "min_cost": 2611.215660569586,
+        "max_cost": 5255.2201315818875,
+        "num_files": 10
+      }
     },
     {
-      "id": "55b99303-ec9e-48bd-86ce-8ed04cf6c3a8",
+      "id": "f93eb8da-28f0-4b7d-9c74-07b9873e382f",
       "low_gains": [
-        0.401,
-        0.042,
-        -0.128
-      ],
-      "high_gains": [
-        0.185,
-        0.027,
-        -0.106
-      ],
-      "stats": {
-        "avg_total_cost": 2901.781863931706,
-        "std_cost": 552.628745611467,
-        "min_cost": 1656.786975421623,
-        "max_cost": 3747.753143874059,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "3488c7f1-81a2-4454-9b29-2d2f8e2dd0a5",
-      "low_gains": [
-        0.6,
-        0.078,
-        -0.05
-      ],
-      "high_gains": [
-        0.336,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 407.93636485451634,
-        "std_cost": 727.822055576361,
-        "min_cost": 18.60734871288997,
-        "max_cost": 2799.941270345447,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "active"
-    },
-    {
-      "id": "5dd113dd-13cc-47f9-b877-3674df378307",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.149
-      ],
-      "high_gains": [
-        0.372,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 2949.3381211133205,
-        "std_cost": 690.7877231728322,
-        "min_cost": 1548.9466417093727,
-        "max_cost": 4311.870317921188,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "f25ae48c-985d-4f16-bd0f-87fe19b2febe",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.182
-      ],
-      "high_gains": [
-        0.379,
-        0.08,
-        -0.041
-      ],
-      "stats": {
-        "avg_total_cost": 4455.488930411732,
-        "std_cost": 1293.20392100025,
-        "min_cost": 2188.6320983082323,
-        "max_cost": 6766.708843670895,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "bf3101a5-45b5-4861-8015-4dfb1365f8b8",
-      "low_gains": [
-        0.408,
+        0.25,
         0.01,
-        -0.061
+        -0.05
       ],
       "high_gains": [
         0.293,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 435.59965741643674,
-        "std_cost": 275.7377701071196,
-        "min_cost": 70.42381556452794,
-        "max_cost": 1002.3037010747529,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "e1fd16a9-3241-4182-a175-d7bdb35368eb",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.093
-      ],
-      "high_gains": [
-        0.385,
         0.005,
         -0.03
       ],
-      "stats": {
-        "avg_total_cost": 1622.289972791066,
-        "std_cost": 1010.282446856387,
-        "min_cost": 38.81214537517502,
-        "max_cost": 3415.8372773036385,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+      "stats": {}
     },
     {
-      "id": "fc316c5b-9cb8-4214-b322-1e8d487d3da5",
+      "id": "d1d24d8a-e816-4272-8e4f-95ff4f417f23",
       "low_gains": [
-        0.381,
-        0.115,
-        -0.104
-      ],
-      "high_gains": [
-        0.3,
-        0.017,
-        -0.131
-      ],
-      "stats": {
-        "avg_total_cost": 2565.6133256402672,
-        "std_cost": 512.1360123759838,
-        "min_cost": 1516.5247505624711,
-        "max_cost": 3434.54720445123,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "abe09019-92fd-4af3-a55e-511dc09d63f1",
-      "low_gains": [
-        0.6,
-        0.078,
+        0.25,
+        0.117,
         -0.05
       ],
       "high_gains": [
-        0.336,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 407.93636485451634,
-        "std_cost": 727.822055576361,
-        "min_cost": 18.60734871288997,
-        "max_cost": 2799.941270345447,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "10d5975c-67ef-4313-865e-918fb692ebfe",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.149
-      ],
-      "high_gains": [
-        0.372,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 2949.3381211133205,
-        "std_cost": 690.7877231728322,
-        "min_cost": 1548.9466417093727,
-        "max_cost": 4311.870317921188,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "1bbb3796-cfc0-4099-a993-efa34c182e57",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.182
-      ],
-      "high_gains": [
-        0.379,
-        0.08,
-        -0.041
-      ],
-      "stats": {
-        "avg_total_cost": 4455.488930411732,
-        "std_cost": 1293.20392100025,
-        "min_cost": 2188.6320983082323,
-        "max_cost": 6766.708843670895,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "d908497e-071f-4ced-a2be-d7640b3439f0",
-      "low_gains": [
-        0.408,
-        0.01,
-        -0.061
-      ],
-      "high_gains": [
-        0.293,
-        0.08,
-        -0.03
-      ],
-      "stats": {
-        "avg_total_cost": 435.59965741643674,
-        "std_cost": 275.7377701071196,
-        "min_cost": 70.42381556452794,
-        "max_cost": 1002.3037010747529,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "bfff086a-5302-44fd-bcc0-d3a85eb7f1dc",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.093
-      ],
-      "high_gains": [
-        0.385,
+        0.164,
         0.005,
         -0.03
       ],
-      "stats": {
-        "avg_total_cost": 1622.289972791066,
-        "std_cost": 1010.282446856387,
-        "min_cost": 38.81214537517502,
-        "max_cost": 3415.8372773036385,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
+      "stats": {}
     },
     {
-      "id": "8efe71fe-6818-465e-878c-5d1be2ed0f27",
+      "id": "e0a866cc-7cab-4751-9126-87bb9c7354e8",
       "low_gains": [
-        0.541,
-        0.033,
-        -0.214
-      ],
-      "high_gains": [
-        0.196,
-        0.028,
-        -0.087
-      ],
-      "stats": {
-        "avg_total_cost": 5606.976708315058,
-        "std_cost": 1365.945742037349,
-        "min_cost": 2890.233123651859,
-        "max_cost": 7805.720010706684,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "eliminated"
-    },
-    {
-      "id": "d5c65be8-ee87-4680-9696-4cdd11acaa02",
-      "low_gains": [
-        0.6,
-        0.078,
+        0.291,
+        0.12,
         -0.05
       ],
       "high_gains": [
-        0.336,
-        0.08,
+        0.193,
+        0.052,
         -0.03
       ],
-      "stats": {},
-      "rounds_survived": 0,
-      "status": "active"
+      "stats": {}
     },
     {
-      "id": "2af55a31-7286-49d7-a0aa-fe62f84fdf96",
+      "id": "094feb39-a380-45df-97ed-896b3a09832f",
       "low_gains": [
-        0.6,
-        0.12,
-        -0.149
+        0.589,
+        0.029,
+        -0.219
       ],
       "high_gains": [
-        0.372,
-        0.08,
-        -0.03
-      ],
-      "stats": {},
-      "rounds_survived": 0,
-      "status": "active"
-    },
-    {
-      "id": "a8d7ec6d-c17e-43c3-80e6-6c1c9188d648",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.182
-      ],
-      "high_gains": [
-        0.379,
-        0.08,
-        -0.041
-      ],
-      "stats": {},
-      "rounds_survived": 0,
-      "status": "active"
-    },
-    {
-      "id": "d94bf4a0-8d6c-4898-9a82-ce9f16e319aa",
-      "low_gains": [
-        0.408,
-        0.01,
-        -0.061
-      ],
-      "high_gains": [
-        0.293,
-        0.08,
-        -0.03
-      ],
-      "stats": {},
-      "rounds_survived": 0,
-      "status": "active"
-    },
-    {
-      "id": "f6c95011-3d4d-4fed-9b10-113934c53ba0",
-      "low_gains": [
-        0.6,
-        0.12,
-        -0.093
-      ],
-      "high_gains": [
-        0.385,
-        0.005,
-        -0.03
-      ],
-      "stats": {},
-      "rounds_survived": 0,
-      "status": "active"
-    },
-    {
-      "id": "3488c7f1-81a2-4454-9b29-2d2f8e2dd0a5",
-      "low_gains": [
-        0.6,
-        0.078,
-        -0.05
-      ],
-      "high_gains": [
-        0.336,
-        0.08,
-        -0.03
+        0.341,
+        0.06,
+        -0.13
       ],
       "stats": {
-        "avg_total_cost": 407.93636485451634,
-        "std_cost": 727.822055576361,
-        "min_cost": 18.60734871288997,
-        "max_cost": 2799.941270345447,
-        "num_files": 12
-      },
-      "rounds_survived": 0,
-      "status": "active"
+        "avg_total_cost": 8337.414356531337,
+        "std_cost": 1235.0226727659751,
+        "min_cost": 6232.683765703389,
+        "max_cost": 9827.19489829977,
+        "num_files": 10
+      }
     }
   ]
 }
