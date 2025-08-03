@@ -45,7 +45,20 @@ def cleanup_artifacts() -> None:
             pass
 
 
-cleanup_artifacts()
+
+base_dir = Path(__file__).parent.parent
+controllers_dir = base_dir / "controllers"
+target_dir = controllers_dir
+controllers_dir.mkdir(parents=True, exist_ok=True)
+
+def cleanup_temp_controller(module_name: str):
+    """Remove temporary neural controller file."""
+    temp_file = target_dir / f"{module_name}.py"
+    try:
+        temp_file.unlink()
+    except FileNotFoundError:
+        pass
+
 
 def create_training_data_from_archive(archive_path, data_files, model, num_samples=5000):
     """

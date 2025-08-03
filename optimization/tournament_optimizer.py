@@ -4,6 +4,11 @@ import numpy as np
 import json
 from pathlib import Path
 import argparse
+
+# Define where temporary controllers should live
+base_dir = Path(__file__).parent.parent
+controllers_dir = base_dir / "controllers"
+target_dir = controllers_dir
 from typing import List, Dict, Any, Optional
 import sys
 import os

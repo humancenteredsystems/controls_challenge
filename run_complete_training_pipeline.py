@@ -17,6 +17,7 @@ import sys
 import json
 import argparse
 from pathlib import Path
+import shutil
 
 def print_stage_header(stage_num, stage_name):
     """Print formatted stage header"""
@@ -57,6 +58,24 @@ def cleanup_previous_runs():
                 print(f"🧹 Removed previous file: {path}")
             except Exception as e:
                 print(f"⚠️ Could not remove {path}: {e}")
+
+    # Remove temporary controllers directory
+    temp_dir = Path("temp_controllers")
+    if temp_dir.exists():
+        try:
+            shutil.rmtree(temp_dir)
+            print(f"🧹 Removed temporary controllers directory: {temp_dir}")
+        except Exception as e:
+            print(f"⚠️ Could not remove temporary controllers directory: {e}")
+
+    # Remove any temporary controller scripts
+    ctrl_dir = Path("controllers")
+    for path in ctrl_dir.glob("temp_*.py"):
+        try:
+            path.unlink()
+            print(f"🧹 Removed temporary controller: {path}")
+        except Exception as e:
+            print(f"⚠️ Could not remove temporary controller {path}: {e}")
 
 def run_stage_1_grid_search(args):
     print_stage_header(1, "Broad PID Parameter Space Exploration")
