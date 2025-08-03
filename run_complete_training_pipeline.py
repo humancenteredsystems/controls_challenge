@@ -40,6 +40,24 @@ def print_results_summary(stage_name, results_file):
     else:
         print(f"⚠️  {stage_name} results file not found: {results_file}")
 
+def cleanup_previous_runs():
+    """Remove artifacts from previous runs so pipeline starts fresh."""
+    files_to_remove = [
+        Path("blended_2pid_comprehensive_results.json"),
+        Path("plans/tournament_archive.json"),
+        Path("plans/blender_training_data.json"),
+        Path("plans/blender_tournament_results.json"),
+        Path("models/neural_blender_champion.onnx"),
+        Path("controllers/neural_blended_champion.py"),
+    ]
+    for path in files_to_remove:
+        if path.exists():
+            try:
+                path.unlink()
+                print(f"🧹 Removed previous file: {path}")
+            except Exception as e:
+                print(f"⚠️ Could not remove {path}: {e}")
+
 def run_stage_1_grid_search(args):
     print_stage_header(1, "Broad PID Parameter Space Exploration")
     cmd = [
@@ -196,6 +214,7 @@ def main():
     args = parser.parse_args()
 
     print("🚀 Starting Complete Training Pipeline")
+    cleanup_previous_runs()
     run_stage_1_grid_search(args)
     run_stage_2_tournament_1(args)
     run_stage_3_tournament_2(args)
