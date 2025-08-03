@@ -249,30 +249,42 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     
     # Get best PID parameters from archive for evaluation
     pid_pairs = get_top_pid_pairs_from_archive()
-    
+
     total_costs = []
-    
+
     # Evaluate on subset of data files
     eval_files = random.sample(data_files, k=min(max_files, len(data_files)))
-    
-    for data_file in eval_files:
-        for pid1_params, pid2_params in pid_pairs[:3]:  # Top 3 PID pairs
-            
-            # Create temporary neural controller using new pattern
-            controller_module = _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, architecture['id'])
-            
-            try:
-                # Evaluate using existing run_rollout pattern
-                cost, _, _ = run_rollout(data_file, controller_module, model)
-                total_costs.append(cost["total_cost"])
-                
-            except Exception as e:
-                print(f"    Evaluation failed: {e}")
-                total_costs.append(1000)  # Penalty for failed evaluation
-                
-            finally:
-                # Clean up temporary controller
-                cleanup_temp_controller(controller_module)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        sys.path.append(tmp_dir)
+        import controllers
+        controllers.__path__.append(tmp_dir)
+        try:
+            for data_file in eval_files:
+                for pid1_params, pid2_params in pid_pairs[:3]:  # Top 3 PID pairs
+
+                    controller_module = _make_temp_neural_controller(
+                        pid1_params, pid2_params, onnx_path, architecture['id'], Path(tmp_dir)
+                    )
+
+                    full_module = f"controllers.{controller_module}"
+                    if full_module in sys.modules:
+                        del sys.modules[full_module]
+
+                    try:
+                        cost, _, _ = run_rollout(data_file, controller_module, model)
+                        total_costs.append(cost["total_cost"])
+
+                    except Exception as e:
+                        print(f"    Evaluation failed: {e}")
+                        total_costs.append(1000)
+
+                    finally:
+                        if full_module in sys.modules:
+                            del sys.modules[full_module]
+        finally:
+            controllers.__path__.remove(tmp_dir)
+            sys.path.remove(tmp_dir)
     
     neural_cost = np.mean(total_costs) if total_costs else 1000
     
@@ -280,23 +292,18 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     # Always return actual neural performance without penalty
     return neural_cost
 
-def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
-    """Create temporary neural controller using new pattern"""
+def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id, target_dir: Path):
+    """Create temporary neural controller in target_dir"""
     from optimization import generate_neural_blended_controller
-    
-    controller_content = generate_neural_blended_controller(pid1_params, pid2_params, onnx_path)
-    module_name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
-    
-    with open(f"controllers/{module_name}.py", "w") as f:
-        f.write(controller_content)
-    
-    return module_name
 
-def cleanup_temp_controller(module_name):
-    """Clean up temporary controller file"""
-    temp_path = f"controllers/{module_name}.py"
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
+    controller_content = generate_neural_blended_controller(pid1_params, pid2_params, onnx_path)
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    module_name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
+
+    with open(Path(target_dir) / f"{module_name}.py", "w") as f:
+        f.write(controller_content)
+
+    return module_name
 
 def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json"):
     """Get top PID parameter pairs from tournament archive"""
