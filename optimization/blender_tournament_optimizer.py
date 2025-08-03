@@ -277,11 +277,8 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     neural_cost = np.mean(total_costs) if total_costs else 1000
     
     # Only reward if better than Tournament #2 best (need 2+ point improvement for leaderboard targeting)
-    improvement = tournament_2_baseline - neural_cost
-    if improvement > 2.0:
-        return neural_cost
-    else:
-        return 1000  # Penalty for not improving enough
+    # Always return actual neural performance without penalty
+    return neural_cost
 
 def _make_temp_neural_controller(pid1_params, pid2_params, onnx_path, arch_id):
     """Create temporary neural controller using new pattern"""

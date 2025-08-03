@@ -4,7 +4,7 @@ import onnxruntime as ort
 import numpy as np
 
 class Controller(BaseController):
-    """Champion Neural Blended Controller - Stage 2d Winner (Cost: 630.32)"""
+    """Champion Neural Blended Controller - Stage 2d Winner (Cost: 491.66)"""
     
     def __init__(self):
         # Best PID parameters from Tournament #2
@@ -17,10 +17,10 @@ class Controller(BaseController):
             providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
         )
         
-        print(f"🏆 Champion Neural Blended Controller loaded (cost: 630.32)")
+        print(f"🏆 Champion Neural Blended Controller loaded (cost: 491.66)")
         print(f"  PID1: P=0.340, I=0.027, D=-0.074")
         print(f"  PID2: P=0.291, I=0.006, D=-0.057")
-        print(f"  Neural Architecture: [32, 24, 24]")
+        print(f"  Neural Architecture: [32, 32]")
     
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         error = target_lataccel - current_lataccel
@@ -39,4 +39,4 @@ class Controller(BaseController):
         return blend_weight * pid1_output + (1 - blend_weight) * pid2_output
     
     def __repr__(self):
-        return f"ChampionNeuralBlendedController(cost=630.32)"
+        return f"ChampionNeuralBlendedController(cost=491.66)"
