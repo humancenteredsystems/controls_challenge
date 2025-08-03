@@ -47,6 +47,13 @@ This is a "simulated car" that has been trained to mimic a very simple physics m
 ## Controllers
 Your controller should implement a new [controller](https://github.com/commaai/controls_challenge/tree/master/controllers). This controller can be passed as an arg to run in-loop in the simulator to autoregressively predict the car's response.
 
+Remaining built-in controllers:
+- pid (now using SpecializedPID with dt=0.1)
+- blended_2pid
+- tournament_optimized
+- neural_blended
+- zero
+
 
 ## Evaluation
 Each rollout will result in 2 costs:

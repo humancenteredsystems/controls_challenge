@@ -51,8 +51,13 @@ class Controller(BaseController):
             with open(archive_path, 'r') as f:
                 archive = json.load(f)
             
-            # Get best performer from archive
-            best_combo = min(archive['archive'], key=lambda x: x['stats']['avg_total_cost'])
+            # Filter entries with valid avg_total_cost and select best performer
+            valid_entries = [item for item in archive['archive'] if 'avg_total_cost' in item.get('stats', {})]
+            if valid_entries:
+                best_combo = min(valid_entries, key=lambda x: x['stats']['avg_total_cost'])
+            else:
+                # Fallback to first archive entry if no valid stats
+                best_combo = archive['archive'][0]
             
             pid1_params = best_combo['low_gains']
             pid2_params = best_combo['high_gains']

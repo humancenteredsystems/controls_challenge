@@ -58,9 +58,12 @@ def run_stage_1_grid_search(args):
     print("❌ Stage 1 failed!")
     return False
 
-def run_stage_2_tournament_1(args):
+def run_stage_2_tournament_1(args, seed_archive="blended_2pid_comprehensive_results.json"):
     """Stage 2: PID Tournament #1 - Initial Discovery"""
     print_stage_header(2, "PID Tournament #1 - Initial Discovery")
+    if not Path(seed_archive).exists():
+        print(f"❌ Seed archive {seed_archive} not found")
+        return False
     cmd = [
         sys.executable, "optimization/tournament_optimizer.py",
         "--rounds", str(args.t1_rounds),
@@ -68,12 +71,22 @@ def run_stage_2_tournament_1(args):
         "--elite_pct", str(args.t1_elite_pct),
         "--revive_pct", str(args.t1_revive_pct),
         "--max_files", str(args.t1_max_files),
-        "--perturb_scale", str(args.perturb_scale)
+        "--perturb_scale", str(args.perturb_scale),
+        "--seed_from_archive", seed_archive
     ]
     print(f"Running: {' '.join(cmd)}")
+    cmd += [
+        "--init_low_min", ",".join(map(str, args.t1_init_low_min)),
+        "--init_low_max", ",".join(map(str, args.t1_init_low_max)),
+        "--init_high_min", ",".join(map(str, args.t1_init_high_min)),
+        "--init_high_max", ",".join(map(str, args.t1_init_high_max)),
+    ]
+    if args.t1_init_seed is not None:
+        cmd += ["--init_seed", str(args.t1_init_seed)]
     result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Tournament #1", "plans/tournament_progress.json")
+        print(f"Seeded Tournament #1 with champions from {seed_archive}")
         return True
     print("❌ Stage 2 failed!")
     return False
@@ -96,6 +109,14 @@ def run_stage_3_tournament_2(args):
         "--seed_from_archive", archive
     ]
     print(f"Running: {' '.join(cmd)}")
+    cmd += [
+        "--init_low_min", ",".join(map(str, args.t2_init_low_min)),
+        "--init_low_max", ",".join(map(str, args.t2_init_low_max)),
+        "--init_high_min", ",".join(map(str, args.t2_init_high_min)),
+        "--init_high_max", ",".join(map(str, args.t2_init_high_max)),
+    ]
+    if args.t2_init_seed is not None:
+        cmd += ["--init_seed", str(args.t2_init_seed)]
     result = subprocess.run(cmd, check=False)
     if result.returncode == 0:
         print_results_summary("Tournament #2", "plans/tournament_progress.json")
@@ -168,12 +189,70 @@ def main():
     parser.add_argument("--t1-max-files", dest="t1_max_files", type=int, default=30)
     parser.add_argument("--t1-elite-pct", dest="t1_elite_pct", type=float, default=0.3)
     parser.add_argument("--t1-revive-pct", dest="t1_revive_pct", type=float, default=0.2)
+    parser.add_argument(
+        "--t1-init-low-min", dest="t1_init_low_min",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.25, 0.01, -0.25],
+        help="Comma-separated min values for low-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t1-init-low-max", dest="t1_init_low_max",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.6, 0.12, -0.05],
+        help="Comma-separated max values for low-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t1-init-high-min", dest="t1_init_high_min",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.15, 0.005, -0.15],
+        help="Comma-separated min values for high-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t1-init-high-max", dest="t1_init_high_max",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.4, 0.08, -0.03],
+        help="Comma-separated max values for high-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t1-init-seed", dest="t1_init_seed",
+        type=int, default=None,
+        help="Random seed for PID Tournament #1 population initialization"
+    )
     # Tournament 2 flags
     parser.add_argument("--t2-rounds", dest="t2_rounds", type=int, default=12)
     parser.add_argument("--t2-pop-size", dest="t2_pop_size", type=int, default=25)
     parser.add_argument("--t2-max-files", dest="t2_max_files", type=int, default=50)
     parser.add_argument("--t2-elite-pct", dest="t2_elite_pct", type=float, default=0.3)
     parser.add_argument("--t2-revive-pct", dest="t2_revive_pct", type=float, default=0.2)
+    parser.add_argument(
+        "--t2-init-low-min", dest="t2_init_low_min",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.25, 0.01, -0.25],
+        help="Comma-separated min values for low-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t2-init-low-max", dest="t2_init_low_max",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.6, 0.12, -0.05],
+        help="Comma-separated max values for low-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t2-init-high-min", dest="t2_init_high_min",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.15, 0.005, -0.15],
+        help="Comma-separated min values for high-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t2-init-high-max", dest="t2_init_high_max",
+        type=lambda s: list(map(float, s.split(","))),
+        default=[0.4, 0.08, -0.03],
+        help="Comma-separated max values for high-speed PID gains (P,I,D)"
+    )
+    parser.add_argument(
+        "--t2-init-seed", dest="t2_init_seed",
+        type=int, default=None,
+        help="Random seed for PID Tournament #2 population initialization"
+    )
     parser.add_argument("--perturb-scale", dest="perturb_scale", type=float, default=0.05)
     # Blender tournament flags
     parser.add_argument("--blender-rounds", dest="blender_rounds", type=int, default=15)
@@ -184,7 +263,9 @@ def main():
     print("🚀 Starting Complete Training Pipeline")
     if not run_stage_1_grid_search(args):
         return 1
-    if not run_stage_2_tournament_1(args):
+    stage1_results = "blended_2pid_comprehensive_results.json"
+    if not run_stage_2_tournament_1(args, stage1_results):
+        print("Pipeline failed at Stage 2")
         return 1
     if not run_stage_3_tournament_2(args):
         return 1

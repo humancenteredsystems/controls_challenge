@@ -42,7 +42,7 @@ Optimize control parameters for autonomous vehicle steering systems using physic
 ├─────────────────────────────────────────────────────────────────┤
 │                      Controller Layer                           │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │      PID        │  │  Blended 2-PID  │  │   Ensemble      │  │
+│  │      PID        │  │  Blended 2-PID  │  │ TournamentOptimized │  │
 │  │   Controller    │  │   Controller    │  │   Controller    │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -57,6 +57,13 @@ Optimize control parameters for autonomous vehicle steering systems using physic
 │              TinyPhysicsSimulator                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+Current Controller Implementations:
+- pid (SpecializedPID with dt=0.1)
+- blended_2pid
+- tournament_optimized
+- neural_blended
+- zero
 
 ## 3. Core Components
 
