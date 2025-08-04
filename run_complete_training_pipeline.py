@@ -156,16 +156,20 @@ def run_stage_4_data_generation(args):
     # Train BlenderNet on generated data
     from neural_blender_net import train_blender_net_from_json
 
-    final_loss = train_blender_net_from_json(
+    results = train_blender_net_from_json(
         args.stage4_output_data,
         epochs=args.stage4_epochs,
         batch_size=args.stage4_batch_size,
         model_output=args.stage4_model_output,
     )
 
-    # Report training results including final loss and model path
+    # Report training results including final and validation loss
     print_results_summary(
-        f"Pre-Training - Loss {final_loss:.4f}", args.stage4_model_output
+        (
+            "Pre-Training - "
+            f"Train {results['train_loss']:.4f}, Val {results['val_loss']:.4f}"
+        ),
+        args.stage4_model_output,
     )
     return True
 

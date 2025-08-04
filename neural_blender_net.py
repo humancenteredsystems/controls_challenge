@@ -176,6 +176,7 @@ def train_blender_net_from_json(
     batch_size=32,
     model_output="models/neural_blender_pretrained.onnx",
     lr=0.001,
+    val_split=0.2,
 ):
     """Train BlenderNet from JSON dataset and export to ONNX.
 
@@ -185,9 +186,10 @@ def train_blender_net_from_json(
         batch_size: Batch size for training.
         model_output: Destination path for exported ONNX model.
         lr: Learning rate for optimizer.
+        val_split: Fraction of samples reserved for validation.
 
     Returns:
-        Final training loss.
+        Dictionary with final training/validation loss and best validation loss.
     """
 
     with open(data_path, "r") as f:
@@ -205,16 +207,26 @@ def train_blender_net_from_json(
     ).unsqueeze(1)
 
     dataset = TensorDataset(features, labels)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    # Split into train/validation sets
+    val_size = int(len(dataset) * val_split)
+    train_size = len(dataset) - val_size
+    train_dataset, val_dataset = torch.utils.data.random_split(
+        dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
     model = BlenderNet()
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    model.train()
+    best_val_loss = float("inf")
     for epoch in range(epochs):
+        model.train()
         running_loss = 0.0
-        for X_batch, y_batch in loader:
+        for X_batch, y_batch in train_loader:
             optimizer.zero_grad()
             outputs = model(X_batch)
             loss = criterion(outputs, y_batch)
@@ -222,18 +234,50 @@ def train_blender_net_from_json(
             optimizer.step()
             running_loss += loss.item() * X_batch.size(0)
 
-        epoch_loss = running_loss / len(dataset)
-        if (epoch + 1) % max(1, epochs // 5) == 0:
-            print(f"Epoch [{epoch+1}/{epochs}] Loss: {epoch_loss:.4f}")
+        train_epoch_loss = running_loss / len(train_dataset)
 
+        # Validation
+        model.eval()
+        val_running_loss = 0.0
+        with torch.no_grad():
+            for X_val, y_val in val_loader:
+                val_outputs = model(X_val)
+                val_loss = criterion(val_outputs, y_val)
+                val_running_loss += val_loss.item() * X_val.size(0)
+
+        val_epoch_loss = val_running_loss / len(val_dataset)
+        best_val_loss = min(best_val_loss, val_epoch_loss)
+
+        if (epoch + 1) % max(1, epochs // 5) == 0:
+            print(
+                f"Epoch [{epoch+1}/{epochs}] "
+                f"Train Loss: {train_epoch_loss:.4f} "
+                f"Val Loss: {val_epoch_loss:.4f}"
+            )
+
+    # Final evaluation
     model.eval()
     with torch.no_grad():
-        final_loss = criterion(model(features), labels).item()
+        final_train_loss = 0.0
+        for X_batch, y_batch in train_loader:
+            out = model(X_batch)
+            final_train_loss += criterion(out, y_batch).item() * X_batch.size(0)
+        final_train_loss /= len(train_dataset)
+
+        final_val_loss = 0.0
+        for X_batch, y_batch in val_loader:
+            out = model(X_batch)
+            final_val_loss += criterion(out, y_batch).item() * X_batch.size(0)
+        final_val_loss /= len(val_dataset)
 
     Path(model_output).parent.mkdir(parents=True, exist_ok=True)
     model.export_to_onnx(model_output)
 
-    return final_loss
+    return {
+        "train_loss": final_train_loss,
+        "val_loss": final_val_loss,
+        "best_val_loss": best_val_loss,
+    }
 
 if __name__ == "__main__":
     # Test BlenderNet creation and export
