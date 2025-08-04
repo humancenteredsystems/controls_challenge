@@ -132,6 +132,11 @@ def save_training_data(training_samples, output_path):
     """Save training data to JSON file."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Compute feature statistics for normalization
+    feature_array = np.array([s[0] for s in training_samples], dtype=np.float32)
+    feature_means = feature_array.mean(axis=0).tolist()
+    feature_stds = feature_array.std(axis=0).tolist()
+
     data = {
         'num_samples': len(training_samples),
         'feature_names': [
@@ -139,6 +144,10 @@ def save_training_data(training_samples, output_path):
             'error_integral', 'error_derivative',
             'future_lataccel_mean', 'future_lataccel_std'
         ],
+        'feature_stats': {
+            'mean': feature_means,
+            'std': feature_stds,
+        },
         'samples': [
             {'features': s[0], 'blend_weight': s[1]}
             for s in training_samples
