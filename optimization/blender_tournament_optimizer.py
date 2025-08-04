@@ -145,22 +145,27 @@ def train_blender_architecture(architecture, training_data, epochs=100):
 def evaluate_blender_architecture(architecture, training_data, data_files, model, baseline, max_files=20):
     """Evaluate architecture performance vs baseline."""
     onnx = train_blender_architecture(architecture, training_data)
-    pid_pairs = get_top_pid_pairs_from_archive()
-    costs=[]
-    files = random.sample(data_files, min(max_files,len(data_files)))
-    for f in files:
-        for low,high in pid_pairs[:3]:
-            mod=None
-            try:
-                mod=_make_temp_neural_controller(low,high,onnx,architecture['id'])
-                c,_,_ = run_rollout(f,mod,model)
-                costs.append(c["total_cost"])
-            except:
-                costs.append(1e3)
-            finally:
-                if mod:
+    costs = []
+    try:
+        pid_pairs = get_top_pid_pairs_from_archive()
+        files = random.sample(data_files, min(max_files, len(data_files)))
+        for f in files:
+            for low, high in pid_pairs[:3]:
+                mod = _make_temp_neural_controller(low, high, onnx, architecture['id'])
+                try:
+                    try:
+                        c, _, _ = run_rollout(f, mod, model)
+                        costs.append(c["total_cost"])
+                    except Exception:
+                        costs.append(1e3)
+                finally:
                     cleanup_temp_controller(mod)
-    return float(np.mean(costs)) if costs else float('inf')
+        return float(np.mean(costs)) if costs else float('inf')
+    finally:
+        try:
+            Path(onnx).unlink()
+        except Exception:
+            pass
 
 def tournament_selection_and_mutation(pop, elite_pct=0.3, mutation_rate=0.2):
     """Select elites and generate mutated offspring."""
@@ -273,6 +278,19 @@ def run_blender_tournament(archive_path, data_files, model_path,
     entries=arc.get('archive',[])
     champ_entry=min(entries, key=lambda x:x['stats'].get('avg_total_cost',float('inf')))
     create_champion_controller(best, champ_entry, best['cost'], archive_path)
+    # persist tournament results for downstream stages
+    out_path = Path("plans/blender_tournament_results.json")
+    out_path.parent.mkdir(exist_ok=True)
+    results = {
+        "best_cost": best["cost"],
+        "winning_architecture": {
+            "id": best["id"],
+            "hidden_sizes": best["hidden_sizes"],
+            "dropout_rate": best["dropout_rate"],
+        },
+    }
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
     return best
 
 def main():

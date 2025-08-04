@@ -34,6 +34,9 @@ def print_results_summary(stage_name, results_file):
             cost = results.get('best_cost')
             if cost is not None:
                 print(f"✅ {stage_name} Complete - Best Cost: {cost:.2f}")
+                arch = results.get("winning_architecture")
+                if isinstance(arch, dict) and arch.get("id"):
+                    print(f"   Winning Architecture ID: {arch['id']}")
             else:
                 print(f"✅ {stage_name} Complete - Results saved to {results_file}")
         except:
