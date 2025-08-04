@@ -196,12 +196,11 @@ def train_blender_net_from_json(
     data_path,
     epochs=10,
     batch_size=32,
-    model_output="models/neural_blender_pretrained.onnx",
+    model_output="models/blender_trained.pth",
     lr=0.001,
     val_split=0.2,
     hidden_sizes=None,
     dropout_rate=None,
-    pretrained_path=None,
 ):
     """Train BlenderNet from JSON dataset and export to ONNX.
 
@@ -209,12 +208,11 @@ def train_blender_net_from_json(
         data_path: Path to JSON file containing training samples.
         epochs: Number of training epochs.
         batch_size: Batch size for training.
-        model_output: Destination path for exported ONNX model.
+        model_output: Destination path for exported model.
         lr: Learning rate for optimizer.
         val_split: Fraction of samples reserved for validation.
         hidden_sizes (list, optional): List of hidden layer sizes for the model.
         dropout_rate (float, optional): Dropout rate for the model.
-        pretrained_path (str, optional): Path to a pre-trained model to load weights from.
 
     Returns:
         Dictionary with final training/validation loss and best validation loss.
@@ -238,7 +236,10 @@ def train_blender_net_from_json(
     else:
         mean = features.mean(dim=0)
         std = features.std(dim=0)
-    std[std == 0] = 1.0
+    
+    # Fix division by zero with robust epsilon
+    epsilon = 1e-8
+    std = torch.clamp(std, min=epsilon)
     features = (features - mean) / std
 
     dataset = TensorDataset(features, labels)
@@ -261,13 +262,8 @@ def train_blender_net_from_json(
         arch_params['dropout_rate'] = dropout_rate
     model = BlenderNet(**arch_params)
 
-    # Load pre-trained weights if path is provided
-    if pretrained_path and Path(pretrained_path).exists():
-        try:
-            model.load_state_dict(torch.load(pretrained_path, weights_only=False))
-            print(f"Loaded pre-trained weights from {pretrained_path}")
-        except Exception as e:
-            print(f"⚠️ Could not load pre-trained weights: {e}. Training from scratch.")
+    # This function no longer loads pre-trained weights.
+    # The tournament optimizer is responsible for loading the trained model.
 
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

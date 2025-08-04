@@ -139,7 +139,7 @@ def run_stage_3_tournament_2(args):
     return True
 
 def run_stage_4_data_generation(args):
-    print_stage_header(4, "Data Generation & Pre-Training (Neural Blender)")
+    print_stage_header(4, "Data Generation & Training (Neural Blender)")
     cmd = [
         sys.executable, "generate_blender_training_data.py",
         "--samples", str(args.stage4_samples),
@@ -154,23 +154,18 @@ def run_stage_4_data_generation(args):
     print_results_summary("Data Generation", args.stage4_output_data)
 
     # Train BlenderNet on generated data
-    from neural_blender_net import train_blender_net_from_json
+    cmd = [
+        sys.executable, "train_blender.py",
+        "--data-path", args.stage4_output_data,
+        "--model-output", args.stage4_model_output.replace(".onnx", ".pth"),
+        "--epochs", str(args.stage4_epochs),
+        "--batch-size", str(args.stage4_batch_size),
+        "--lr", str(args.stage4_lr)
+    ]
+    subprocess.run(cmd, check=False)
 
-    results = train_blender_net_from_json(
-        args.stage4_output_data,
-        epochs=args.stage4_epochs,
-        batch_size=args.stage4_batch_size,
-        model_output=args.stage4_model_output,
-    )
-
-    # Report training results including final and validation loss
-    print_results_summary(
-        (
-            "Pre-Training - "
-            f"Train {results['train_loss']:.4f}, Val {results['val_loss']:.4f}"
-        ),
-        args.stage4_model_output,
-    )
+    # Report training results
+    print_results_summary("Training", args.stage4_model_output.replace(".onnx", ".pth"))
     return True
 
 def run_stage_5_blender_tournament(args):
@@ -245,9 +240,10 @@ def main():
     parser.add_argument("--stage4-batch-size", dest="stage4_batch_size", type=int, default=32,
                         help="Batch size for neural blender pre-training")
     parser.add_argument("--stage4-model-output", dest="stage4_model_output", type=str,
-                        default="models/neural_blender_pretrained.onnx", help="Output path for pre-trained neural blender ONNX model")
+                        default="models/blender_trained.onnx", help="Output path for trained neural blender ONNX model")
+    parser.add_argument("--stage4-lr", type=float, default=0.001, help="Learning rate for BlenderNet training")
     parser.add_argument("--stage4-data-seed", dest="stage4_data_seed", type=int, default=None,
-                        help="Seed for Stage 4 data generation and pre-training")
+                        help="Seed for Stage 4 data generation and training")
     # Stage 5 blender tournament
     parser.add_argument("--blender-rounds", type=int, default=15)
     parser.add_argument("--blender-pop-size", type=int, default=20)

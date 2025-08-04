@@ -1,8 +1,8 @@
 from . import BaseController
 from .shared_pid import SpecializedPID
+from .blending import get_smooth_blend_weight
 import json
 from pathlib import Path
-from utils.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     """

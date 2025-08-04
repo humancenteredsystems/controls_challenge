@@ -98,9 +98,9 @@ class Blended2PIDOptimizer:
     def test_controller_combination(self, data_files: List[str], low_gains: List[float], 
                                    high_gains: List[float], max_files: int = 25) -> Dict[str, float]:
         """Test a single blended 2-PID controller combination"""
-        controller_content = f'''from . import BaseController
+        controller_content = f'''from controllers import BaseController
 from controllers.shared_pid import SpecializedPID
-from utils.blending import get_smooth_blend_weight
+from controllers.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     def __init__(self):
@@ -128,8 +128,8 @@ class Controller(BaseController):
                 cost, _, _ = run_rollout(fpath, name, model, debug=False)
                 costs.append(cost["total_cost"])
                 count += 1
-            except:
-                pass
+            except Exception as e:
+                print(f"Error during rollout for {name}: {e}")
         if path.exists(): path.unlink()
         if count==0:
             return {"avg_total_cost": float("inf"), "num_files":0}

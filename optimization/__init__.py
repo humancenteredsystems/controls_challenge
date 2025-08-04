@@ -22,7 +22,7 @@ def generate_blended_controller(low_gains: List[float], high_gains: List[float])
     # by virtue of the template string below. The local definition has been removed.
     return f'''from controllers import BaseController
 from controllers.shared_pid import SpecializedPID
-from utils.blending import get_smooth_blend_weight
+from controllers.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     def __init__(self):

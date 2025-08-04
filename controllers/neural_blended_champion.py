@@ -5,16 +5,16 @@ import numpy as np
 
 class Controller(BaseController):
    def __init__(self):
-       self.pid1 = SpecializedPID(0.34, 0.027, -0.074)
-       self.pid2 = SpecializedPID(0.291, 0.006, -0.057)
+       self.pid1 = SpecializedPID(0.599, 0.093, -0.128)
+       self.pid2 = SpecializedPID(0.25, 0.061, -0.041)
        
        self.blender_session = ort.InferenceSession("models/neural_blender_champion.onnx",
            providers=['CPUExecutionProvider'])
 
-       self.feature_mean = np.array([ 1.99516945e+01, -1.13237239e-01,  1.03601195e-01, -1.47993620e-02,
-  7.44884536e-02, -2.18505897e-02,  6.71600401e-02,  4.12871450e-01], dtype=np.float32)
-       self.feature_std = np.array([12.26183605,  1.74829924,  1.17043579,  0.3279759 ,  0.21340278,
-  0.11656978,  0.61870861,  0.41793579], dtype=np.float32)
+       self.feature_mean = np.array([ 2.11325378e+01,  3.16461176e-01, -1.37785133e-02,  8.29297453e-02,
+  3.48650701e-02, -9.96782910e-03,  2.25655913e-01,  4.12314415e-01], dtype=np.float32)
+       self.feature_std = np.array([18.83441544,  1.71287072,  0.67919713,  0.52955788,  0.16270544,
+  0.09340752,  0.99589872,  0.43653294], dtype=np.float32)
        self.feature_std[self.feature_std == 0] = 1.0  # Avoid division by zero
 
    def update(self, target_lataccel, current_lataccel, state, future_plan):

@@ -21,8 +21,6 @@ if parent_dir not in sys.path:
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from utils.logging import print_banner, print_params, print_summary, print_goal_progress, tqdm, EMOJI_PARTY, EMOJI_TROPHY, EMOJI_OK
-from utils.blending import get_smooth_blend_weight
-from .simple_blender_optimizer import get_top_pid_pairs_from_archive
 
 def cleanup_artifacts() -> None:
     """Remove leftover temporary controllers and blender models."""
@@ -76,32 +74,43 @@ def mutate_architecture(arch, mutation_rate=0.3):
 
 def train_architecture(architecture, training_data_path, epochs=100, pretrained_path=None):
     """Train neural architecture on training data."""
-    from neural_blender_net import train_blender_net_from_json
+    from neural_blender_net import BlenderNet, train_blender_net_from_json
+    import torch
+    
     arch_id = architecture['id']
     model_output_path = Path("models") / f"blender_{arch_id}.onnx"
     model_output_path.parent.mkdir(exist_ok=True)
     print(f"    Training architecture {arch_id}... ", end="", flush=True)
-    
+
+    # Create a new model with the specified architecture
+    model = BlenderNet(
+        hidden_sizes=architecture['hidden_sizes'],
+        dropout_rate=architecture['dropout_rate']
+    )
+
+    # Load the weights from the trained model
+    if pretrained_path and Path(pretrained_path).exists():
+        try:
+            model.load_state_dict(torch.load(pretrained_path, weights_only=False))
+            print(f"Loaded trained weights from {pretrained_path}")
+        except Exception as e:
+            print(f"⚠️ Could not load trained weights: {e}. Training from scratch.")
+
+    # Continue training on the new data
     train_blender_net_from_json(
         data_path=training_data_path,
         epochs=epochs,
         model_output=str(model_output_path),
         hidden_sizes=architecture['hidden_sizes'],
         dropout_rate=architecture['dropout_rate'],
-        pretrained_path=pretrained_path.replace(".onnx", ".pth") if pretrained_path else None
     )
     
     print("✅ Complete")
     return str(model_output_path)
 
-
-def train_blender_architecture(architecture, training_data_path, epochs=100, pretrained_path=None):
-    """Backward-compatible wrapper for train_architecture."""
-    return train_architecture(architecture, training_data_path, epochs=epochs, pretrained_path=pretrained_path)
-
 def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pairs, data_files, model, max_files=20, pretrained_path=None):
     """Evaluate architecture with multiple PID pairs showing detailed total_cost tracking."""
-    onnx_path = train_architecture(architecture, training_data_path, epochs=100, pretrained_path=pretrained_path)
+    onnx_path = train_architecture(architecture, training_data_path, epochs=100, pretrained_path="models/blender_trained.pth")
     costs = []
     
     try:
@@ -138,24 +147,6 @@ def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pai
             pass
 
 
-def evaluate_blender_architecture(architecture, pid_pairs, data_files, model, baseline_cost):
-    """Backward-compatible wrapper for testing that ensures temporary artifacts are cleaned up."""
-    onnx_path = train_blender_architecture(architecture, pid_pairs)
-    try:
-        pairs = pid_pairs or get_top_pid_pairs_from_archive()
-        pairs = random.sample(pairs, min(len(pairs), 1))
-        costs = []
-        for low, high in pairs:
-            ctrl = _make_temp_neural_controller(low, high, onnx_path, architecture.get("id"))
-            res, _, _ = run_rollout(data_files[0], ctrl, model)
-            costs.append(res["total_cost"])
-            cleanup_temp_controller(ctrl)
-        return float(np.mean(costs)) if costs else float("inf")
-    finally:
-        try:
-            Path(onnx_path).unlink()
-        except Exception:
-            pass
 
 def tournament_selection_and_evolution(population, elite_pct=0.3):
     """Tournament selection and mutation for next generation."""
@@ -191,40 +182,6 @@ def cleanup_temp_controller(name):
     if path.exists():
         path.unlink()
 
-def get_top_pid_pairs_from_archive():
-    """Placeholder for retrieving PID pairs from the tournament archive.
-
-    Expected to be monkeypatched in tests.
-    """
-    raise NotImplementedError("get_top_pid_pairs_from_archive is not implemented")
-
-def train_blender_architecture(architecture, training_data):
-    """Placeholder training routine for a blender architecture.
-
-    Returns the path to an ONNX model for the provided architecture. This
-    function is expected to be monkeypatched in tests and during real training.
-    """
-    raise NotImplementedError("train_blender_architecture is not implemented")
-
-
-def evaluate_blender_architecture(architecture, training_data, data_files, model, max_files):
-    """Evaluate a single blender architecture and ensure artifacts are cleaned up."""
-    onnx_path = train_blender_architecture(architecture, training_data)
-    try:
-        pid_pairs = get_top_pid_pairs_from_archive()
-        test_files = random.sample(data_files, min(max_files, len(data_files))) if max_files > 0 else data_files
-        pid1, pid2 = pid_pairs[0]
-        controller_name = _make_temp_neural_controller(pid1, pid2, onnx_path, architecture["id"])
-        try:
-            result, _, _ = run_rollout(test_files[0], controller_name, model)
-            return result["total_cost"]
-        finally:
-            cleanup_temp_controller(controller_name)
-    finally:
-        try:
-            os.remove(onnx_path)
-        except OSError:
-            pass
 
 def get_tournament_baseline(archive_path):
     """Get baseline cost from tournament archive."""

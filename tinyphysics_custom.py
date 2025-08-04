@@ -3,6 +3,7 @@ import importlib
 import numpy as np
 import onnxruntime as ort
 import os
+import sys
 
 # GPU acceleration enabled with CUDA 11.8 + ONNX Runtime 1.17.1 + cuDNN 8
 CUDA_AVAILABLE = True
