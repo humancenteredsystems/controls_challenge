@@ -48,25 +48,40 @@ class BlenderNet(nn.Module):
     def forward(self, x):
         return self.network(x)
     
-    def extract_features(self, state, error, error_integral, error_derivative, future_plan):
+    def extract_features(self, state, error, error_integral, error_derivative, future_plan, stats=None):
         """
-        Extract 8-dimensional feature vector from control state
-        
+        Extract 8-dimensional feature vector from control state.
+
         Features:
-        [v_ego, roll_lataccel, a_ego, error, error_integral, error_derivative, 
+        [v_ego, roll_lataccel, a_ego, error, error_integral, error_derivative,
          future_lataccel_mean, future_lataccel_std]
+
+        Args:
+            state: Vehicle state object.
+            error: Lateral control error.
+            error_integral: Integral of error.
+            error_derivative: Derivative of error.
+            future_plan: Plan containing future lateral accelerations.
+            stats: Optional dictionary with 'mean' and 'std' lists for
+                feature normalization.
         """
         features = np.array([
             state.v_ego,
             state.roll_lataccel,
-            state.a_ego, 
+            state.a_ego,
             error,
             error_integral,
             error_derivative,
             np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
             np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0
         ], dtype=np.float32)
-        
+
+        if stats and 'mean' in stats and 'std' in stats:
+            mean = np.array(stats['mean'], dtype=np.float32)
+            std = np.array(stats['std'], dtype=np.float32)
+            std[std == 0] = 1.0
+            features = (features - mean) / std
+
         return torch.tensor(features).unsqueeze(0)
     
     def export_to_onnx(self, onnx_path, input_size=8):
@@ -199,12 +214,19 @@ def train_blender_net_from_json(
     if not samples:
         raise ValueError(f"No training samples found in {data_path}")
 
-    features = torch.tensor(
-        [s["features"] for s in samples], dtype=torch.float32
-    )
-    labels = torch.tensor(
-        [s["blend_weight"] for s in samples], dtype=torch.float32
-    ).unsqueeze(1)
+    features = torch.tensor([s["features"] for s in samples], dtype=torch.float32)
+    labels = torch.tensor([s["blend_weight"] for s in samples], dtype=torch.float32).unsqueeze(1)
+
+    # Load feature statistics for normalization
+    stats = data.get("feature_stats", {})
+    if "mean" in stats and "std" in stats:
+        mean = torch.tensor(stats["mean"], dtype=torch.float32)
+        std = torch.tensor(stats["std"], dtype=torch.float32)
+    else:
+        mean = features.mean(dim=0)
+        std = features.std(dim=0)
+    std[std == 0] = 1.0
+    features = (features - mean) / std
 
     dataset = TensorDataset(features, labels)
 

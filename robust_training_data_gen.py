@@ -7,6 +7,8 @@ import json
 import random
 from pathlib import Path
 
+import numpy as np
+
 def generate_training_data():
     """Generate training data from tournament archive with error handling"""
     
@@ -109,7 +111,12 @@ def generate_training_data():
             print(f"  Completed {combo_idx + 1}/{len(top_performers)} combinations")
     
     print(f"Generated {len(training_samples)} training samples")
-    
+
+    # Compute feature statistics for normalization
+    feature_array = np.array([s[0] for s in training_samples], dtype=np.float32)
+    feature_means = feature_array.mean(axis=0).tolist()
+    feature_stds = feature_array.std(axis=0).tolist()
+
     # Save training data
     training_data = {
         'num_samples': len(training_samples),
@@ -117,9 +124,13 @@ def generate_training_data():
         'top_performers_used': len(top_performers),
         'feature_names': [
             'v_ego', 'roll_lataccel', 'a_ego', 'error',
-            'error_integral', 'error_derivative', 
+            'error_integral', 'error_derivative',
             'future_lataccel_mean', 'future_lataccel_std'
         ],
+        'feature_stats': {
+            'mean': feature_means,
+            'std': feature_stds,
+        },
         'samples': [
             {
                 'features': sample[0],
