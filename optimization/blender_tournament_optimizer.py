@@ -41,103 +41,103 @@ def load_top_pid_pairs(archive_path, n=5):
     top = sorted(valid, key=lambda x: x['stats']['avg_total_cost'])[:n]
     return [(e['low_gains'], e['high_gains']) for e in top]
 
-def create_random_architecture():
-    """Create random neural architecture."""
-    hidden = []
-    for _ in range(random.randint(2, 3)):
-        hidden.append(random.choice([16, 24, 32, 48]))
-    dropout = random.choice([0.05, 0.1, 0.15])
-    return {
-        'hidden_sizes': hidden,
-        'dropout_rate': dropout,
-        'id': hashlib.md5(str(hidden + [dropout]).encode()).hexdigest()[:8],
+def create_random_hyperparameters():
+    """Create random hyperparameter set for the fixed-architecture BlenderNet."""
+    # Architecture is fixed to [32, 16] as per Stage 4 pre-training
+    hyperparams = {
+        'hidden_sizes': [32, 16],
+        'dropout_rate': random.choice([0.05, 0.1, 0.15, 0.2, 0.25]),
+        'learning_rate': random.choice([0.0005, 0.001, 0.002, 0.005]),
+        'epochs': random.choice([50, 100, 150, 200]),
+        'batch_size': random.choice([16, 32, 64]),
         'cost': float('inf')
     }
+    # Generate a unique ID based on the hyperparameters
+    hyperparams['id'] = hashlib.md5(str(sorted(hyperparams.items())).encode()).hexdigest()[:8]
+    return hyperparams
 
-def mutate_architecture(arch, mutation_rate=0.3):
-    """Mutate neural architecture."""
-    child = arch.copy()
+def mutate_hyperparameters(parent_hyperparams, mutation_rate=0.3):
+    """Mutate hyperparameters."""
+    child = parent_hyperparams.copy()
     child['cost'] = float('inf')
+
+    if random.random() < mutation_rate:
+        child['dropout_rate'] = random.choice([0.05, 0.1, 0.15, 0.2, 0.25])
     
     if random.random() < mutation_rate:
-        # Mutate hidden layer size
-        if child['hidden_sizes']:
-            i = random.randrange(len(child['hidden_sizes']))
-            child['hidden_sizes'][i] = random.choice([16, 24, 32, 48])
-    
+        child['learning_rate'] = random.choice([0.0005, 0.001, 0.002, 0.005])
+
     if random.random() < mutation_rate:
-        # Mutate dropout rate
-        child['dropout_rate'] = random.choice([0.05, 0.1, 0.15])
-    
-    child['id'] = hashlib.md5(str(child['hidden_sizes'] + [child['dropout_rate']]).encode()).hexdigest()[:8]
+        child['epochs'] = random.choice([50, 100, 150, 200])
+
+    if random.random() < mutation_rate:
+        child['batch_size'] = random.choice([16, 32, 64])
+
+    child['id'] = hashlib.md5(str(sorted(child.items())).encode()).hexdigest()[:8]
     return child
 
-def train_architecture(architecture, training_data_path, epochs=100, pretrained_path=None):
-    """Train neural architecture on training data."""
+def train_model_with_hyperparameters(hyperparams, training_data_path, pretrained_path=None):
+    """Train a BlenderNet model with a specific set of hyperparameters."""
     from neural_blender_net import BlenderNet, train_blender_net_from_json
     import torch
-    
-    arch_id = architecture['id']
-    model_output_path = Path("models") / f"blender_{arch_id}.onnx"
-    model_output_path.parent.mkdir(exist_ok=True)
-    print(f"    Training architecture {arch_id}... ", end="", flush=True)
 
-    # Create a new model with the specified architecture
+    model_id = hyperparams['id']
+    model_output_path = Path("models") / f"blender_{model_id}.onnx"
+    model_output_path.parent.mkdir(exist_ok=True)
+    print(f"    Training model {model_id} with params: {hyperparams}... ", end="", flush=True)
+
+    # Create a new model with the fixed architecture but specified hyperparameters
     model = BlenderNet(
-        hidden_sizes=architecture['hidden_sizes'],
-        dropout_rate=architecture['dropout_rate']
+        hidden_sizes=hyperparams['hidden_sizes'],
+        dropout_rate=hyperparams['dropout_rate']
     )
 
-    # Load the weights from the trained model
+    # Load the weights from the pre-trained model
     if pretrained_path and Path(pretrained_path).exists():
         try:
             model.load_state_dict(torch.load(pretrained_path, weights_only=False))
-            print(f"Loaded trained weights from {pretrained_path}")
         except Exception as e:
-            print(f"⚠️ Could not load trained weights: {e}. Training from scratch.")
+            print(f"⚠️ Could not load pre-trained weights: {e}. Training from scratch.")
 
-    # Continue training on the new data
+    # Train the model
     train_blender_net_from_json(
         data_path=training_data_path,
-        epochs=epochs,
+        epochs=hyperparams['epochs'],
+        batch_size=hyperparams['batch_size'],
+        lr=hyperparams['learning_rate'],
         model_output=str(model_output_path),
-        hidden_sizes=architecture['hidden_sizes'],
-        dropout_rate=architecture['dropout_rate'],
+        hidden_sizes=hyperparams['hidden_sizes'],
+        dropout_rate=hyperparams['dropout_rate'],
     )
     
     print("✅ Complete")
     return str(model_output_path)
 
-def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pairs, data_files, model, max_files=20, pretrained_path=None):
-    """Evaluate architecture with multiple PID pairs showing detailed total_cost tracking."""
-    onnx_path = train_architecture(architecture, training_data_path, epochs=100, pretrained_path="models/blender_trained.pth")
+def evaluate_hyperparameters_on_pid_pairs(hyperparams, training_data_path, pid_pairs, data_files, model, max_files=20, pretrained_path=None):
+    """Evaluate a hyperparameter set with multiple PID pairs."""
+    onnx_path = train_model_with_hyperparameters(hyperparams, training_data_path, pretrained_path)
     costs = []
     
     try:
         test_files = random.sample(data_files, min(max_files, len(data_files)))
         print(f"      Testing on {len(test_files)} files with {len(pid_pairs[:3])} PID pairs...")
         
-        for pid_idx, (low_gains, high_gains) in enumerate(pid_pairs[:3]):  # Test on top 3 PID pairs
+        for pid_idx, (low_gains, high_gains) in enumerate(pid_pairs[:3]):
             pid_costs = []
             for file_idx, test_file in enumerate(test_files):
-                controller_name = create_temp_neural_controller(low_gains, high_gains, onnx_path, architecture['id'])
+                controller_name = create_temp_neural_controller(low_gains, high_gains, onnx_path, hyperparams['id'])
                 try:
                     cost_result, _, _ = run_rollout(test_file, controller_name, model)
                     total_cost = cost_result["total_cost"]
                     pid_costs.append(total_cost)
                     costs.append(total_cost)
-                    print(f"        PID{pid_idx+1} File{file_idx+1}: total_cost={total_cost:.2f}")
                 except Exception:
-                    costs.append(1e3)  # Penalty for failed evaluation
-                    print(f"        PID{pid_idx+1} File{file_idx+1}: FAILED (cost=1000.0)")
+                    costs.append(1e3)
                 finally:
                     cleanup_temp_controller(controller_name)
             
-            if pid_costs:
-                print(f"      → PID Pair {pid_idx+1} average: {np.mean(pid_costs):.2f}")
-        
         avg_cost = float(np.mean(costs)) if costs else float('inf')
-        print(f"    → Architecture {architecture['id']} overall average: {avg_cost:.2f}")
+        print(f"    → Hyperparameters {hyperparams['id']} overall average: {avg_cost:.2f}")
         print_goal_progress(avg_cost)
         return avg_cost
     finally:
@@ -157,7 +157,7 @@ def tournament_selection_and_evolution(population, elite_pct=0.3):
     next_gen = elites.copy()
     while len(next_gen) < len(population):
         parent = random.choice(population[:len(population)//2])  # Select from top half
-        child = mutate_architecture(parent)
+        child = mutate_hyperparameters(parent)
         next_gen.append(child)
     
     return next_gen
@@ -197,17 +197,16 @@ def get_tournament_baseline(archive_path):
         print("⚠️ Could not load baseline, using 200.0")
         return 200.0
 
-def create_champion_controller(best_arch, best_pid_pair, archive_path):
+def create_champion_controller(best_hyperparams, best_pid_pair, archive_path):
     """Create final champion controller."""
     print(f"{EMOJI_TROPHY} Creating champion controller...")
     
     # Train champion model with extended epochs
     champion_data_path = "plans/blender_training_data.json"
-    champion_onnx = train_architecture(
-        best_arch,
+    champion_onnx = train_model_with_hyperparameters(
+        best_hyperparams,
         champion_data_path,
-        epochs=200,
-        pretrained_path="models/neural_blender_pretrained.onnx"
+        pretrained_path="models/neural_blender_pretrained.pth"
     )
     final_path = "models/neural_blender_champion.onnx"
     Path(champion_onnx).rename(final_path)
@@ -249,14 +248,14 @@ def extract_state_from_file(data_file):
     return state, error, future
 
 def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_size=15, max_files=20):
-    """Run simplified blender tournament focusing only on neural architecture."""
-    print_banner(5, "Neural Blender Tournament (Architecture Search)")
+    """Run simplified blender tournament focusing only on hyperparameter optimization."""
+    print_banner(5, "Neural Blender Tournament (Hyperparameter Search)")
     print_params({
         "archive": archive_path,
         "rounds": rounds,
         "population": pop_size,
         "max_files": max_files,
-        "approach": "Fixed PID pairs, evolve neural architecture only"
+        "approach": "Fixed architecture, evolve hyperparameters"
     })
 
     # Load fixed PID pairs from Stage 3
@@ -275,30 +274,30 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_
     print(f"📂 Using training data from {training_data_path}")
 
     # Initialize population
-    population = [create_random_architecture() for _ in range(pop_size)]
+    population = [create_random_hyperparameters() for _ in range(pop_size)]
     best_overall = {'cost': float('inf')}
     
     # Tournament evolution
     for round_num in range(1, rounds + 1):
         print(f"\n--- Round {round_num}/{rounds} ---", flush=True)
         
-        # Evaluate architectures with detailed reporting
-        for arch_idx, arch in enumerate(population):
-            if arch['cost'] == float('inf'):
-                print(f"  Architecture {arch_idx+1}/{len(population)} ({arch['id']})")
-                cost = evaluate_architecture_on_pid_pairs(
-                    arch,
+        # Evaluate hyperparameter sets with detailed reporting
+        for hyperparam_idx, hyperparams in enumerate(population):
+            if hyperparams['cost'] == float('inf'):
+                print(f"  Hyperparameters {hyperparam_idx+1}/{len(population)} ({hyperparams['id']})")
+                cost = evaluate_hyperparameters_on_pid_pairs(
+                    hyperparams,
                     training_data_path,
                     pid_pairs,
                     data_files,
                     model,
                     max_files,
-                    pretrained_path="models/neural_blender_pretrained.onnx"
+                    pretrained_path="models/neural_blender_pretrained.pth"
                 )
-                arch['cost'] = cost
+                hyperparams['cost'] = cost
                 if cost < best_overall['cost']:
-                    best_overall = arch.copy()
-                    print(f" {EMOJI_PARTY} New overall best: {cost:.2f} (arch id: {arch['id']})", flush=True)
+                    best_overall = hyperparams.copy()
+                    print(f" {EMOJI_PARTY} New overall best: {cost:.2f} (hyperparams id: {hyperparams['id']})", flush=True)
         
         # Round summary
         population.sort(key=lambda x: x['cost'])
