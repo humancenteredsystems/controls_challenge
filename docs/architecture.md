@@ -53,9 +53,10 @@ Optimization Pipeline Stages
   - `generate_blender_training_data.py`  
   - `neural_blender_net.py`: BlenderNet model & training scripts
 
-- **Stage 5:** Neural architecture search  
+- **Stage 5:** Neural architecture search (simplified)  
   - `optimization/blender_tournament_optimizer.py`  
-  - Evolves BlenderNet architectures for blending
+  - Uses fixed PID controllers from Stage 3, evolves only neural architecture  
+  - Avoids duplication of PID optimization already completed in Stages 2/3
 
 ## 4. Controller Types
 

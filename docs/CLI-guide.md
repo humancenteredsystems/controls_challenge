@@ -97,13 +97,15 @@ Global
 - `--output-path PATH` (via `--stage4-output-data`)  
 - `--data-seed INT`  
 
-### 2.4 Stage 5: Blender Tournament  
+### 2.4 Stage 5: Blender Tournament (Simplified)  
 **File:** `optimization/blender_tournament_optimizer.py`  
-- `--archive PATH`  
-- `--rounds INT`  
-- `--pop-size INT`  
-- `--max-files INT`  
-- `--data-seed INT`  
+- `--archive PATH` (loads fixed PID pairs from Stage 3)  
+- `--rounds INT` (default: 10)  
+- `--pop_size INT` (default: 15)  
+- `--max_files INT` (default: 20)  
+- `--data_seed INT` (reproducible neural architecture search)  
+
+**Note:** Stage 5 now uses fixed PID controllers from Stage 3 and only evolves neural architecture to avoid duplicating the PID optimization work already completed.
 
 ---
 
