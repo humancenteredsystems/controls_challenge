@@ -36,6 +36,7 @@ def test_neural_blended_controller():
     print(f"\n📝 Creating test neural blended controller...")
     
     controller_content = f'''from controllers.neural_blended import Controller as BaseNeuralController
+from utils.blending import get_smooth_blend_weight
 
 class Controller(BaseNeuralController):
     def __init__(self):
@@ -43,10 +44,14 @@ class Controller(BaseNeuralController):
         pid1_params = {best_performer['low_gains']}
         pid2_params = {best_performer['high_gains']}
         
-        # No neural model initially - will use velocity-based fallback
+        # No neural model initially - will use smooth blending
         super().__init__(pid1_params, pid2_params, blender_model_path=None)
         
-        print("Test Neural Blended Controller initialized (using velocity fallback)")
+        print("Test Neural Blended Controller initialized (using smooth blending)")
+
+    def _get_neural_blend_weight(self, state, error, future_plan):
+        # Override with smooth blending for testing
+        return get_smooth_blend_weight(state.v_ego)
 '''
     
     # Save as temporary controller

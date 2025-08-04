@@ -15,6 +15,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tinyphysics_custom import run_rollout
+from utils.blending import get_smooth_blend_weight
 
 class ComprehensiveOptimizer:
     """Enhanced grid search optimization for ensemble controllers"""
@@ -138,7 +139,6 @@ class Controller(BaseController):
     def __init__(self):
         self.low_speed_pid = SpecializedPID({low_gains[0]}, {low_gains[1]}, {low_gains[2]})
         self.high_speed_pid = SpecializedPID({high_gains[0]}, {high_gains[1]}, {high_gains[2]})
-        self.dynamic_pid = SpecializedPID({dynamic_gains[0]}, {dynamic_gains[1]}, {dynamic_gains[2]})
         
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         error = target_lataccel - current_lataccel
@@ -146,29 +146,13 @@ class Controller(BaseController):
         
         low_output = self.low_speed_pid.update(error)
         high_output = self.high_speed_pid.update(error)
-        dynamic_output = self.dynamic_pid.update(error)
         
-        # Enhanced rule-based blending
-        if v_ego < 20:  # Very low speed
-            weights = [0.8, 0.1, 0.1]
-        elif v_ego < 40:  # Low speed
-            weights = [0.6, 0.3, 0.1]
-        elif v_ego > 70:  # High speed
-            weights = [0.05, 0.8, 0.15]
-        elif v_ego > 50:  # Medium-high speed
-            weights = [0.2, 0.6, 0.2]
-        else:  # Medium speed
-            weights = [0.4, 0.4, 0.2]
-            
-        # Adjust for dynamic scenarios
-        if abs(target_lataccel) > 1.0:  # Very sharp turns
-            weights = [0.1, 0.2, 0.7]
-        elif abs(target_lataccel) > 0.5:  # Moderate turns
-            weights[2] = min(weights[2] + 0.2, 0.6)
-            weights[0] = max(weights[0] - 0.1, 0.1)
-            weights[1] = 1.0 - weights[0] - weights[2]
+        # Smooth velocity-based blending
+        blend_weight = get_smooth_blend_weight(v_ego)
+        low_weight = 1.0 - blend_weight
+        high_weight = blend_weight
         
-        return sum(w * o for w, o in zip(weights, [low_output, high_output, dynamic_output]))
+        return low_weight * low_output + high_weight * high_output
 '''
         
         # Get the correct path to controllers directory

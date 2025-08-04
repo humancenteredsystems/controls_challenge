@@ -16,6 +16,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 from utils.logging import print_banner, print_params, print_summary, tqdm, EMOJI_LAB, EMOJI_OK
+from utils.blending import get_smooth_blend_weight
 
 def load_tournament_archive(archive_path="plans/tournament_archive.json"):
     """Load PID tournament archive"""
@@ -66,48 +67,12 @@ def analyze_archive_performance(archive):
 
     return top_performers
 
-def compute_optimal_blend_weight(
-    v_ego,
-    error_magnitude,
-    future_complexity,
-    scenario_type="normal",
-    bias: float = 0.0,
-):
-    """Compute optimal blend weight based on vehicle state and scenario.
-
-    Parameters
-    ----------
-    v_ego : float
-        Ego vehicle speed.
-    error_magnitude : float
-        Absolute control error.
-    future_complexity : float
-        Heuristic of upcoming path complexity.
-    scenario_type : str, optional
-        Scenario label ("highway", "city", "normal"), by default "normal".
-    bias : float, optional
-        Additional adjustment applied to the final blend weight. Used to nudge
-        sampling toward underrepresented blend weight categories when
-        generating training data.
+def compute_optimal_blend_weight(v_ego: float) -> float:
     """
-
-    speed_blend = np.clip((v_ego - 20) / 30, 0, 1)
-    error_adjustment = 0.2 if error_magnitude > 0.5 else -0.2
-    complexity_adjustment = 0.1 if future_complexity > 0.7 else -0.1
-    if scenario_type == "highway":
-        scenario_adjustment = 0.1
-    elif scenario_type == "city":
-        scenario_adjustment = -0.1
-    else:
-        scenario_adjustment = 0.0
-    optimal_blend = (
-        speed_blend
-        + error_adjustment
-        + complexity_adjustment
-        + scenario_adjustment
-        + bias
-    )
-    return float(np.clip(optimal_blend, 0.0, 1.0))
+    Compute optimal blend weight based on vehicle state.
+    This now uses the centralized smooth blending function.
+    """
+    return get_smooth_blend_weight(v_ego)
 
 def generate_training_samples(top_performers, num_samples):
     """Generate training samples for BlenderNet with balanced blend weights.
@@ -165,14 +130,7 @@ def generate_training_samples(top_performers, num_samples):
                 elif most_needed == "high":
                     bias = 0.2
 
-                blend = compute_optimal_blend_weight(
-                    v_ego,
-                    abs(error),
-                    future_lataccel_std,
-                    "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
-
-                    bias=bias,
-                )
+                blend = compute_optimal_blend_weight(v_ego)
                 cat = categorize(blend)
                 if categories[cat] < target_counts[cat]:
                     features = [
@@ -206,13 +164,7 @@ def generate_training_samples(top_performers, num_samples):
             most_needed = max(categories, key=lambda c: deficit(c))
             bias = -0.2 if most_needed == "low" else 0.2 if most_needed == "high" else 0.0
 
-            blend = compute_optimal_blend_weight(
-                v_ego,
-                abs(error),
-                future_complexity,
-                "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
-                bias=bias,
-            )
+            blend = compute_optimal_blend_weight(v_ego)
             cat = categorize(blend)
             if categories[cat] < target_counts[cat]:
                 features = [v_ego, 0, 0, error, 0, 0, 0, future_complexity]

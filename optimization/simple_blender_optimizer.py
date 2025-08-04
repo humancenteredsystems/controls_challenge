@@ -19,6 +19,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
+from utils.blending import get_smooth_blend_weight
 
 def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json"):
     """Get top PID parameter pairs from tournament archive"""
@@ -43,66 +44,11 @@ def get_top_pid_pairs_from_archive(archive_path="plans/tournament_archive.json")
 
 def create_blending_strategy(strategy_params):
     """
-    Create a blending strategy function based on parameters
-    
-    Args:
-        strategy_params: Dict with strategy configuration
-        
-    Returns:
-        Function that takes vehicle state and returns blend weight [0,1]
+    This function now returns the centralized smooth blending function.
+    The strategy_params are ignored.
     """
-    
-    strategy_type = strategy_params.get('type', 'speed_threshold')
-    
-    if strategy_type == 'speed_threshold':
-        # Simple speed threshold blending
-        threshold = strategy_params.get('speed_threshold', 40)
-        low_weight = strategy_params.get('low_speed_weight', 0.8)
-        high_weight = strategy_params.get('high_speed_weight', 0.2)
-        
-        def blend_func(v_ego, roll_lataccel, a_ego, error):
-            return low_weight if v_ego < threshold else high_weight
-            
-    elif strategy_type == 'linear_speed':
-        # Linear interpolation based on speed
-        min_speed = strategy_params.get('min_speed', 10)
-        max_speed = strategy_params.get('max_speed', 60)
-        min_weight = strategy_params.get('min_weight', 0.9)
-        max_weight = strategy_params.get('max_weight', 0.1)
-        
-        def blend_func(v_ego, roll_lataccel, a_ego, error):
-            if v_ego <= min_speed:
-                return min_weight
-            elif v_ego >= max_speed:
-                return max_weight
-            else:
-                # Linear interpolation
-                t = (v_ego - min_speed) / (max_speed - min_speed)
-                return min_weight + t * (max_weight - min_weight)
-                
-    elif strategy_type == 'error_adaptive':
-        # Adaptive blending based on error magnitude
-        base_threshold = strategy_params.get('speed_threshold', 35)
-        error_sensitivity = strategy_params.get('error_sensitivity', 0.3)
-        
-        def blend_func(v_ego, roll_lataccel, a_ego, error):
-            # Base blend from speed
-            base_blend = 0.7 if v_ego < base_threshold else 0.3
-            
-            # Adjust based on error magnitude
-            error_adjustment = error_sensitivity * min(abs(error), 1.0)
-            
-            # Higher error -> favor more responsive controller (lower blend weight)
-            adjusted_blend = base_blend - error_adjustment
-            
-            return max(0.0, min(1.0, adjusted_blend))
-    
-    else:
-        # Fallback to fixed blend
-        fixed_weight = strategy_params.get('fixed_weight', 0.5)
-        def blend_func(v_ego, roll_lataccel, a_ego, error):
-            return fixed_weight
-    
+    def blend_func(v_ego, roll_lataccel, a_ego, error):
+        return get_smooth_blend_weight(v_ego)
     return blend_func
 
 def create_temp_blended_controller(pid1_params, pid2_params, blending_strategy, strategy_id):

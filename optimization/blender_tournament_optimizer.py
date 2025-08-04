@@ -12,7 +12,6 @@ import random
 import numpy as np
 import hashlib
 from pathlib import Path
-import logging
 
 # Add parent directory to path to find tinyphysics
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +21,7 @@ if parent_dir not in sys.path:
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from utils.logging import print_banner, print_params, print_summary, print_goal_progress, tqdm, EMOJI_PARTY, EMOJI_TROPHY, EMOJI_OK
+from utils.blending import get_smooth_blend_weight
 
 def cleanup_artifacts() -> None:
     """Remove leftover temporary controllers and blender models."""
@@ -41,47 +41,6 @@ def load_top_pid_pairs(archive_path, n=5):
     valid = [e for e in entries if 'stats' in e and 'avg_total_cost' in e['stats']]
     top = sorted(valid, key=lambda x: x['stats']['avg_total_cost'])[:n]
     return [(e['low_gains'], e['high_gains']) for e in top]
-
-def create_comprehensive_training_data(pid_pairs, data_files, model, num_samples=1000):
-    """Generate comprehensive training data using all top PID pairs."""
-    print(f"\n🔬 Generating comprehensive training data from {len(pid_pairs)} PID pairs...")
-    samples = []
-    samples_per_pair = num_samples // len(pid_pairs)
-    
-    for idx, (low_gains, high_gains) in enumerate(tqdm(pid_pairs, desc="PID Pairs", unit="pair")):
-        pair_samples = []
-        for _ in tqdm(range(samples_per_pair), desc=f" Pair {idx+1}", leave=False, unit="sample"):
-            data_file = random.choice(data_files)
-            best_blend = find_optimal_blend_weight(low_gains, high_gains, data_file, model)
-            state, error, future = extract_state_from_file(data_file)
-            features = [
-                state.v_ego, state.roll_lataccel, state.a_ego,
-                error, state.error_integral, state.error_derivative,
-                np.mean(future.lataccel), np.std(future.lataccel)
-            ]
-            pair_samples.append((features, best_blend))
-        samples.extend(pair_samples)
-        print(f"  ✅ Generated {len(pair_samples)} samples for PID pair {idx+1}/{len(pid_pairs)}")
-    
-    # Fill remainder
-    while len(samples) < num_samples:
-        low_gains, high_gains = random.choice(pid_pairs)
-        data_file = random.choice(data_files)
-        best_blend = find_optimal_blend_weight(low_gains, high_gains, data_file, model)
-        state, error, future = extract_state_from_file(data_file)
-        features = [
-            state.v_ego, state.roll_lataccel, state.a_ego,
-            error, state.error_integral, state.error_derivative,
-            np.mean(future.lataccel), np.std(future.lataccel)
-        ]
-        samples.append((features, best_blend))
-    
-    print_summary("Comprehensive Training Data", {
-        "total_samples": len(samples),
-        "pid_pairs": len(pid_pairs),
-        "samples_per_pair": samples_per_pair
-    })
-    return samples
 
 def create_random_architecture():
     """Create random neural architecture."""
@@ -114,21 +73,29 @@ def mutate_architecture(arch, mutation_rate=0.3):
     child['id'] = hashlib.md5(str(child['hidden_sizes'] + [child['dropout_rate']]).encode()).hexdigest()[:8]
     return child
 
-def train_architecture(architecture, training_data, epochs=100):
+def train_architecture(architecture, training_data_path, epochs=100, pretrained_path=None):
     """Train neural architecture on training data."""
-    from neural_blender_net import BlenderNet, train_blender_net
+    from neural_blender_net import train_blender_net_from_json
     arch_id = architecture['id']
-    path = Path("models") / f"blender_{arch_id}.onnx"
-    path.parent.mkdir(exist_ok=True)
+    model_output_path = Path("models") / f"blender_{arch_id}.onnx"
+    model_output_path.parent.mkdir(exist_ok=True)
     print(f"    Training architecture {arch_id}... ", end="", flush=True)
-    model = train_blender_net(training_data, epochs=epochs)
-    model.export_to_onnx(str(path))
+    
+    train_blender_net_from_json(
+        data_path=training_data_path,
+        epochs=epochs,
+        model_output=str(model_output_path),
+        hidden_sizes=architecture['hidden_sizes'],
+        dropout_rate=architecture['dropout_rate'],
+        pretrained_path=pretrained_path
+    )
+    
     print("✅ Complete")
-    return str(path)
+    return str(model_output_path)
 
-def evaluate_architecture_on_pid_pairs(architecture, training_data, pid_pairs, data_files, model, max_files=20):
+def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pairs, data_files, model, max_files=20, pretrained_path=None):
     """Evaluate architecture with multiple PID pairs showing detailed total_cost tracking."""
-    onnx_path = train_architecture(architecture, training_data)
+    onnx_path = train_architecture(architecture, training_data_path, epochs=100, pretrained_path=pretrained_path)
     costs = []
     
     try:
@@ -214,55 +181,37 @@ def create_champion_controller(best_arch, best_pid_pair, archive_path):
     print(f"{EMOJI_TROPHY} Creating champion controller...")
     
     # Train champion model with extended epochs
-    champion_data_path = Path("plans/blender_training_data.json")
-    if champion_data_path.exists():
-        with open(champion_data_path) as f:
-            data = json.load(f)
-        training_samples = [(s["features"], s["blend_weight"]) for s in data["samples"]]
-    else:
-        training_samples = []
-    
-    champion_onnx = train_architecture(best_arch, training_samples, epochs=200)
+    champion_data_path = "plans/blender_training_data.json"
+    champion_onnx = train_architecture(
+        best_arch,
+        champion_data_path,
+        epochs=200,
+        pretrained_path="models/neural_blender_pretrained.onnx"
+    )
     final_path = "models/neural_blender_champion.onnx"
     Path(champion_onnx).rename(final_path)
     
+    # Load normalization stats to embed in the controller
+    with open(champion_data_path, 'r') as f:
+        training_data = json.load(f)
+    norm_stats = training_data.get('feature_stats')
+
     # Create champion controller code
     low_gains, high_gains = best_pid_pair
     from optimization import generate_neural_blended_controller
-    controller_code = generate_neural_blended_controller(low_gains, high_gains, final_path)
+    controller_code = generate_neural_blended_controller(low_gains, high_gains, final_path, norm_stats=norm_stats)
     
     with open("controllers/neural_blended_champion.py", "w") as f:
         f.write(controller_code)
     
     print(f"{EMOJI_OK} Champion controller ready: controllers/neural_blended_champion.py")
 
-def find_optimal_blend_weight(low_gains, high_gains, data_file, model):
-    """Find optimal blend weight through discrete search."""
-    from optimization import generate_blended_controller
-    best_cost, best_blend = float('inf'), 0.5
-    
-    for blend in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:
-        content = generate_blended_controller(low_gains, high_gains)
-        # Replace blend logic to use fixed weight
-        content = content.replace('if v_ego < 40:', f'if False:').replace(
-            'weights = [0.8, 0.2]', f'weights = [{blend}, {1-blend}]').replace(
-            'weights = [0.2, 0.8]', f'weights = [{blend}, {1-blend}]')
-        
-        name = f"temp_blend_{hashlib.md5(str(blend).encode()).hexdigest()[:8]}"
-        path = Path("controllers") / f"{name}.py"
-        try:
-            with open(path, 'w') as f:
-                f.write(content)
-            cost_result, _, _ = run_rollout(data_file, name, model)
-            if cost_result["total_cost"] < best_cost:
-                best_cost, best_blend = cost_result["total_cost"], blend
-        except:
-            pass
-        finally:
-            if path.exists():
-                path.unlink()
-    
-    return best_blend
+def find_optimal_blend_weight(data_file, model):
+    """
+    This function is now deprecated as the blending logic is centralized.
+    This function is no longer used.
+    """
+    pass
 
 def extract_state_from_file(data_file):
     """Extract state information from CSV file."""
@@ -291,39 +240,26 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_
     print_params({
         "archive": archive_path,
         "rounds": rounds,
-        "population": pop_size, 
+        "population": pop_size,
         "max_files": max_files,
         "approach": "Fixed PID pairs, evolve neural architecture only"
     })
-    
+
     # Load fixed PID pairs from Stage 3
     pid_pairs = load_top_pid_pairs(archive_path, n=5)
     best_pid_pair = pid_pairs[0]  # Best pair for champion
     baseline = get_tournament_baseline(archive_path)
-    
+
     model = TinyPhysicsModel(model_path, debug=False)
     print("Blender Tournament: GPU Enabled")
-    
-    # Create comprehensive training data
-    training_data_path = Path("plans/blender_training_data.json")
-    if training_data_path.exists():
-        print("📂 Loading existing training data")
-        with open(training_data_path) as f:
-            data = json.load(f)
-        training_data = [(s["features"], s["blend_weight"]) for s in data["samples"]]
-    else:
-        training_data = create_comprehensive_training_data(pid_pairs, data_files, model)
-        # Save for future use
-        data = {
-            "num_samples": len(training_data),
-            "feature_names": ["v_ego", "roll_lataccel", "a_ego", "error", 
-                            "error_integral", "error_derivative", 
-                            "future_lataccel_mean", "future_lataccel_std"],
-            "samples": [{"features": feat, "blend_weight": weight} for feat, weight in training_data]
-        }
-        with open(training_data_path, 'w') as f:
-            json.dump(data, f, indent=2)
-    
+
+    # Ensure training data exists from Stage 4
+    training_data_path = "plans/blender_training_data.json"
+    if not Path(training_data_path).exists():
+        print(f"❌ Training data not found at {training_data_path}. Run Stage 4 first.")
+        sys.exit(1)
+    print(f"📂 Using training data from {training_data_path}")
+
     # Initialize population
     population = [create_random_architecture() for _ in range(pop_size)]
     best_overall = {'cost': float('inf')}
@@ -336,7 +272,15 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_
         for arch_idx, arch in enumerate(population):
             if arch['cost'] == float('inf'):
                 print(f"  Architecture {arch_idx+1}/{len(population)} ({arch['id']})")
-                cost = evaluate_architecture_on_pid_pairs(arch, training_data, pid_pairs, data_files, model, max_files)
+                cost = evaluate_architecture_on_pid_pairs(
+                    arch,
+                    training_data_path,
+                    pid_pairs,
+                    data_files,
+                    model,
+                    max_files,
+                    pretrained_path="models/neural_blender_pretrained.onnx"
+                )
                 arch['cost'] = cost
                 if cost < best_overall['cost']:
                     best_overall = arch.copy()
@@ -402,6 +346,8 @@ def main():
     if args.data_seed is not None:
         random.seed(args.data_seed)
         np.random.seed(args.data_seed)
+        import torch
+        torch.manual_seed(args.data_seed)
     
     data_files = [str(f) for f in Path("data").glob("*.csv")]
     if not data_files:

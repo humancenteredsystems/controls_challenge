@@ -2,6 +2,7 @@
 Shared utilities for optimization modules
 """
 from typing import List
+import numpy as np
 
 def generate_blended_controller(low_gains: List[float], high_gains: List[float]) -> str:
     """
@@ -17,20 +18,10 @@ def generate_blended_controller(low_gains: List[float], high_gains: List[float])
     Returns:
         Complete controller code as string
     """
+    # This function now correctly uses the shared SpecializedPID from controllers.shared_pid
+    # by virtue of the template string below. The local definition has been removed.
     return f'''from controllers import BaseController
-
-class SpecializedPID:
-    def __init__(self, p, i, d):
-        self.p, self.i, self.d = p, i, d
-        self.error_integral = 0
-        self.prev_error = 0
-    
-    def update(self, error):
-        dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz) - CRITICAL TIME STEP FIX
-        self.error_integral += error * dt
-        error_diff = (error - self.prev_error) / dt
-        self.prev_error = error
-        return self.p * error + self.i * self.error_integral + self.d * error_diff
+from controllers.shared_pid import SpecializedPID
 
 class Controller(BaseController):
     def __init__(self):
@@ -45,22 +36,44 @@ class Controller(BaseController):
         low_output = self.low_speed_pid.update(error)
         high_output = self.high_speed_pid.update(error)
         
-        # Simple velocity-based blending logic: v_ego < 40 for 80%/20% vs 20%/80%
-        if v_ego < 40:  # Low speed: use 80% low + 20% high
-            weights = [0.8, 0.2]
-        else:  # High speed: use 20% low + 80% high
-            weights = [0.2, 0.8]
+        # Smooth velocity-based blending with sigmoid transition
+        # Threshold: 15 m/s (~33 mph), transition zone: ±2.5 m/s
+        import math
+        def smooth_blend_weight(v_ego, threshold=15.0, smoothness=1.5):
+            return 1.0 / (1.0 + math.exp(-(v_ego - threshold) / smoothness))
         
-        # Blend outputs (PROPER blending, not summation!)
-        blended_output = (weights[0] * low_output + 
-                         weights[1] * high_output)
+        # Calculate smooth blend weights
+        blend_weight = smooth_blend_weight(v_ego)
+        low_weight = 1.0 - blend_weight
+        high_weight = blend_weight
+        
+        # Blend outputs using smooth weights
+        blended_output = (low_weight * low_output + high_weight * high_output)
         
         return blended_output
 '''
 
-def generate_neural_blended_controller(pid1_params, pid2_params, onnx_model_path):
-   """Neural variant of existing generate_blended_controller()"""
-   return f'''from controllers import BaseController
+def generate_neural_blended_controller(pid1_params, pid2_params, onnx_model_path, norm_stats=None):
+    """
+    Generate neural blended controller code with embedded normalization stats.
+    """
+    if norm_stats:
+        mean_str = np.array2string(np.array(norm_stats['mean']), separator=', ', floatmode='maxprec')
+        std_str = np.array2string(np.array(norm_stats['std']), separator=', ', floatmode='maxprec')
+        normalization_block = f"""
+       self.feature_mean = np.array({mean_str}, dtype=np.float32)
+       self.feature_std = np.array({std_str}, dtype=np.float32)
+       self.feature_std[self.feature_std == 0] = 1.0  # Avoid division by zero
+"""
+        feature_processing_block = """
+       # Normalize features
+       features = (features - self.feature_mean) / self.feature_std
+"""
+    else:
+        normalization_block = ""
+        feature_processing_block = ""
+
+    return f'''from controllers import BaseController
 from controllers.shared_pid import SpecializedPID
 import onnxruntime as ort
 import numpy as np
@@ -71,19 +84,30 @@ class Controller(BaseController):
        self.pid2 = SpecializedPID({pid2_params[0]}, {pid2_params[1]}, {pid2_params[2]})
        
        self.blender_session = ort.InferenceSession("{onnx_model_path}",
-           providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-   
+           providers=['CPUExecutionProvider'])
+{normalization_block}
    def update(self, target_lataccel, current_lataccel, state, future_plan):
        error = target_lataccel - current_lataccel
+       # Update PID controllers and get their outputs
        pid1_output = self.pid1.update(error)
        pid2_output = self.pid2.update(error)
        
-       features = np.array([[state.v_ego, state.roll_lataccel, state.a_ego, error,
-                            self.pid1.error_integral, error - self.pid1.prev_error,
-                            np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
-                            np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0]], dtype=np.float32)
-       
+       # Extract features for the neural blender
+       features = np.array([[
+           state.v_ego,
+           state.roll_lataccel,
+           state.a_ego,
+           error,
+           self.pid1.error_integral,
+           self.pid1.error_derivative, # Use the derivative from the PID controller
+           np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
+           np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0
+       ]], dtype=np.float32)
+{feature_processing_block}
+       # Run inference
        blend_weight = self.blender_session.run(None, {{'input': features}})[0][0]
        blend_weight = np.clip(float(blend_weight), 0.0, 1.0)
+       
+       # Blend the PID outputs
        return blend_weight * pid1_output + (1 - blend_weight) * pid2_output
 '''

@@ -1,6 +1,7 @@
 from . import BaseController
 from .shared_pid import SpecializedPID
 import json
+import math
 import os
 from pathlib import Path
 
@@ -41,15 +42,19 @@ class Controller(BaseController):
         low_output = self.low_speed_pid.update(error)
         high_output = self.high_speed_pid.update(error)
         
-        # Simple velocity-based blending logic
-        if v_ego < 40:  # Low speed: use 80% low + 20% high
-            weights = [0.8, 0.2]
-        else:  # High speed: use 20% low + 80% high
-            weights = [0.2, 0.8]
+        # Smooth velocity-based blending with sigmoid transition
+        # Threshold: 15 m/s (~33 mph), transition zone: ±2.5 m/s
+        def smooth_blend_weight(v_ego, threshold=15.0, smoothness=1.5):
+            """Calculate smooth blend weight using sigmoid function"""
+            return 1.0 / (1.0 + math.exp(-(v_ego - threshold) / smoothness))
         
-        # Blend outputs
-        blended_output = (weights[0] * low_output + 
-                         weights[1] * high_output)
+        # Calculate blend weight (0.0 = all low-speed, 1.0 = all high-speed)
+        blend_weight = smooth_blend_weight(v_ego)
+        low_weight = 1.0 - blend_weight
+        high_weight = blend_weight
+        
+        # Blend outputs using smooth weights
+        blended_output = (low_weight * low_output + high_weight * high_output)
         
         return blended_output
     

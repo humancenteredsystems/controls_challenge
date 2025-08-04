@@ -26,6 +26,7 @@ class SpecializedPID:
         self.name = name
         self.error_integral = 0
         self.prev_error = 0
+        self.error_derivative = 0
     
     def update(self, error):
         """
@@ -41,14 +42,15 @@ class SpecializedPID:
         """
         dt = 0.1  # Match tinyphysics DEL_T = 0.1 (10 Hz) - CRITICAL FOR eval.py
         self.error_integral += error * dt
-        error_diff = (error - self.prev_error) / dt
+        self.error_derivative = (error - self.prev_error) / dt
         self.prev_error = error
-        return self.p * error + self.i * self.error_integral + self.d * error_diff
+        return self.p * error + self.i * self.error_integral + self.d * self.error_derivative
     
     def reset(self):
         """Reset PID controller state."""
         self.error_integral = 0
         self.prev_error = 0
+        self.error_derivative = 0
     
     def __repr__(self):
         """String representation for debugging."""

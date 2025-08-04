@@ -12,7 +12,7 @@ class BlenderNet(nn.Module):
     Input: 8 features (vehicle state + error dynamics + future plan)
     Output: Single blend weight [0,1] for PID1 vs PID2
     """
-    def __init__(self, input_size=8, hidden_sizes=[32, 16]):
+    def __init__(self, input_size=8, hidden_sizes=[32, 16], dropout_rate=0.1):
         super(BlenderNet, self).__init__()
         
         layers = []
@@ -23,7 +23,7 @@ class BlenderNet(nn.Module):
             layers.extend([
                 nn.Linear(prev_size, hidden_size),
                 nn.ReLU(),
-                nn.Dropout(0.1)
+                nn.Dropout(dropout_rate)
             ])
             prev_size = hidden_size
         
@@ -94,7 +94,7 @@ class BlenderNet(nn.Module):
         # Export to ONNX
         torch.onnx.export(
             self,
-            dummy_input,
+            (dummy_input,),
             onnx_path,
             export_params=True,
             opset_version=11,
@@ -144,7 +144,7 @@ def mutate_blender_net(parent_net, mutation_rate=0.1):
     
     return child_net
 
-def train_blender_net(training_data, epochs=100, lr=0.001):
+def train_blender_net(training_data, epochs=100, lr=0.001, hidden_sizes=None, dropout_rate=None):
     """
     Train BlenderNet using supervised learning on optimal blending data
     
@@ -152,13 +152,20 @@ def train_blender_net(training_data, epochs=100, lr=0.001):
         training_data: List of (features, optimal_blend_weight) tuples
         epochs: Number of training epochs
         lr: Learning rate
+        hidden_sizes (list, optional): List of hidden layer sizes.
+        dropout_rate (float, optional): Dropout rate.
     
     Returns:
         Trained BlenderNet model
     """
     
-    # Create model
-    model = BlenderNet()
+    # Create model with specified or default architecture
+    arch_params = {}
+    if hidden_sizes:
+        arch_params['hidden_sizes'] = hidden_sizes
+    if dropout_rate:
+        arch_params['dropout_rate'] = dropout_rate
+    model = BlenderNet(**arch_params)
     
     # Loss and optimizer  
     criterion = nn.MSELoss()
@@ -192,6 +199,9 @@ def train_blender_net_from_json(
     model_output="models/neural_blender_pretrained.onnx",
     lr=0.001,
     val_split=0.2,
+    hidden_sizes=None,
+    dropout_rate=None,
+    pretrained_path=None,
 ):
     """Train BlenderNet from JSON dataset and export to ONNX.
 
@@ -202,6 +212,9 @@ def train_blender_net_from_json(
         model_output: Destination path for exported ONNX model.
         lr: Learning rate for optimizer.
         val_split: Fraction of samples reserved for validation.
+        hidden_sizes (list, optional): List of hidden layer sizes for the model.
+        dropout_rate (float, optional): Dropout rate for the model.
+        pretrained_path (str, optional): Path to a pre-trained model to load weights from.
 
     Returns:
         Dictionary with final training/validation loss and best validation loss.
@@ -240,7 +253,22 @@ def train_blender_net_from_json(
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
-    model = BlenderNet()
+    # Create model with specified or default architecture
+    arch_params = {}
+    if hidden_sizes:
+        arch_params['hidden_sizes'] = hidden_sizes
+    if dropout_rate:
+        arch_params['dropout_rate'] = dropout_rate
+    model = BlenderNet(**arch_params)
+
+    # Load pre-trained weights if path is provided
+    if pretrained_path and Path(pretrained_path).exists():
+        try:
+            model.load_state_dict(torch.load(pretrained_path))
+            print(f"Loaded pre-trained weights from {pretrained_path}")
+        except Exception as e:
+            print(f"⚠️ Could not load pre-trained weights: {e}. Training from scratch.")
+
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 

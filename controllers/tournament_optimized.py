@@ -17,6 +17,7 @@ Architecture validated through tournament evolution with GPU acceleration.
 
 from . import BaseController
 from .shared_pid import SpecializedPID
+from utils.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     """
@@ -35,9 +36,6 @@ class Controller(BaseController):
         # Tournament winner parameters - cost: 219.12
         self.low_speed_gains = [0.575, 0.120, -0.050]   # [P, I, D] for low speed
         self.high_speed_gains = [0.293, 0.080, -0.030]  # [P, I, D] for high speed
-
-        # Velocity threshold for blended control (40 mph = 17.88 m/s)
-        self.velocity_threshold = 17.88
 
         # Initialize shared PID controllers
         self.low_pid = SpecializedPID(
@@ -82,11 +80,10 @@ class Controller(BaseController):
         low_output = self.low_pid.update(error)
         high_output = self.high_pid.update(error)
 
-        # Blend based on velocity
-        if state.v_ego < self.velocity_threshold:
-            low_weight, high_weight = 0.8, 0.2
-        else:
-            low_weight, high_weight = 0.2, 0.8
+        # Smooth velocity-based blending
+        blend_weight = get_smooth_blend_weight(state.v_ego)
+        low_weight = 1.0 - blend_weight
+        high_weight = blend_weight
 
         steer_control_target = low_weight * low_output + high_weight * high_output
         return steer_control_target
