@@ -97,7 +97,7 @@ Global
 - `--output-path PATH` (via `--stage4-output-data`)  
 - `--data-seed INT`  
 
-### 2.4 Stage 5: Blender Tournament (Simplified)  
+### 2.4 Stage 5: Blender Tournament
 **File:** `optimization/blender_tournament_optimizer.py`  
 - `--archive PATH` (loads fixed PID pairs from Stage 3)  
 - `--rounds INT` (default: 10)  
