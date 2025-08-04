@@ -11,6 +11,7 @@ import json
 import numpy as np
 import random
 from pathlib import Path
+from utils.logging import print_banner, print_params, print_summary, tqdm, EMOJI_LAB, EMOJI_OK
 
 def load_tournament_archive(archive_path="plans/tournament_archive.json"):
     """Load PID tournament archive"""
@@ -24,14 +25,13 @@ def analyze_archive_performance(archive):
     """Analyze archive to understand performance patterns"""
     print("📊 Archive Analysis:")
     print("-" * 40)
-    # Support both list under 'archive' key and dict of entries
     if isinstance(archive, dict) and 'archive' in archive and isinstance(archive['archive'], list):
         performers = archive['archive']
     elif isinstance(archive, dict):
         performers = list(archive.values())
     else:
         performers = archive
-    # Extract costs using mean_cost or avg_total_cost legacy
+
     costs = []
     min_costs = []
     for p in performers:
@@ -40,16 +40,18 @@ def analyze_archive_performance(archive):
         low_min = stats.get('min_cost', float('nan'))
         costs.append(cost)
         min_costs.append(low_min)
+
     print(f"Total parameter combinations: {len(performers)}")
     print(f"Average cost range: {min(costs):.2f} - {max(costs):.2f}")
     print(f"Best minimum cost: {min(min_costs):.2f}")
     print(f"Performance gap: {max(costs)/min(costs):.1f}x")
-    # Sort by mean_cost or avg_total_cost
+
     sorted_performers = sorted(
         performers,
         key=lambda x: x.get('stats', {}).get('mean_cost', x.get('stats', {}).get('avg_total_cost', float('nan')))
     )
     top_performers = sorted_performers[:10]
+
     print(f"\nTop 10 Performers:")
     for i, p in enumerate(top_performers):
         params = p.get('parameters', {})
@@ -57,6 +59,7 @@ def analyze_archive_performance(archive):
         high = p.get('high_gains', params.get('high_gains', []))
         cost = p.get('stats', {}).get('mean_cost', p.get('stats', {}).get('avg_total_cost', float('nan')))
         print(f"  {i+1:2d}. Cost: {cost:.2f} Low: {low} High: {high}")
+
     return top_performers
 
 def compute_optimal_blend_weight(v_ego, error_magnitude, future_complexity, scenario_type="normal"):
@@ -74,39 +77,51 @@ def compute_optimal_blend_weight(v_ego, error_magnitude, future_complexity, scen
     return float(np.clip(optimal_blend, 0.0, 1.0))
 
 def generate_training_samples(top_performers, num_samples):
-    """Generate training samples for BlenderNet."""
+    """Generate training samples for BlenderNet with progress bars and summaries."""
     print(f"\n🔬 Generating {num_samples} training samples...")
     training_samples = []
-    samples_per_combo = num_samples // len(top_performers)
-    for combo in top_performers:
-        for _ in range(samples_per_combo):
-            v_ego = np.clip(np.random.gamma(2,15),5,70)
-            roll_lataccel = np.clip(np.random.normal(0,1.5),-4,4)
-            a_ego = np.clip(np.random.normal(0,1.0),-3,3)
-            error = np.clip(np.random.laplace(0,0.3),-2,2)
-            error_integral = np.clip(np.random.normal(0,0.2),-1,1)
-            error_derivative = np.clip(np.random.normal(0,0.1),-0.5,0.5)
-            future_lataccel_std = np.clip(np.random.exponential(0.5),0,2)
+    total_performers = len(top_performers)
+    samples_per_combo = num_samples // total_performers
+
+    for idx, combo in enumerate(tqdm(top_performers, desc="Combos", unit="combo"), start=1):
+        combo_samples = []
+        for _ in tqdm(range(samples_per_combo), desc=" Samples", leave=False, unit="sample"):
+            v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
+            roll_lataccel = np.clip(np.random.normal(0, 1.5), -4, 4)
+            a_ego = np.clip(np.random.normal(0, 1.0), -3, 3)
+            error = np.clip(np.random.laplace(0, 0.3), -2, 2)
+            error_integral = np.clip(np.random.normal(0, 0.2), -1, 1)
+            error_derivative = np.clip(np.random.normal(0, 0.1), -0.5, 0.5)
+            future_lataccel_std = np.clip(np.random.exponential(0.5), 0, 2)
             features = [
                 v_ego, roll_lataccel, a_ego,
                 error, error_integral, error_derivative,
-                np.clip(np.random.normal(0,1.0),-3,3),
+                np.clip(np.random.normal(0, 1.0), -3, 3),
                 future_lataccel_std
             ]
-            scenario = "highway" if v_ego>50 else ("city" if v_ego<25 else "normal")
-            blend = compute_optimal_blend_weight(v_ego, abs(error), future_lataccel_std, scenario)
-            training_samples.append((features, blend))
-    # Fill remaining
+            blend = compute_optimal_blend_weight(v_ego, abs(error), future_lataccel_std,
+                                                 "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal")
+            combo_samples.append((features, blend))
+
+        training_samples.extend(combo_samples)
+        print(f"  ✅ Generated {len(combo_samples)} samples for combo {idx}/{total_performers}")
+
+    # Fill any remainder
     while len(training_samples) < num_samples:
         combo = random.choice(top_performers)
-        v_ego = np.clip(np.random.gamma(2,15),5,70)
-        error = np.clip(np.random.laplace(0,0.3),-2,2)
-        future_complexity = np.clip(np.random.exponential(0.5),0,2)
-        scenario = "highway" if v_ego>50 else ("city" if v_ego<25 else "normal")
-        blend = compute_optimal_blend_weight(v_ego, abs(error), future_complexity, scenario)
-        features = [v_ego, 0,0, error,0,0,0, future_complexity]
+        v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
+        error = np.clip(np.random.laplace(0, 0.3), -2, 2)
+        future_complexity = np.clip(np.random.exponential(0.5), 0, 2)
+        blend = compute_optimal_blend_weight(v_ego, abs(error), future_complexity,
+                                             "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal")
+        features = [v_ego, 0, 0, error, 0, 0, 0, future_complexity]
         training_samples.append((features, blend))
-    print(f"✅ Generated {len(training_samples)} training samples")
+
+    print_summary("Training Samples Summary", {
+        "total_samples": len(training_samples),
+        "samples_per_combo": samples_per_combo,
+        "combos": total_performers
+    })
     return training_samples
 
 def save_training_data(training_samples, output_path):
@@ -115,9 +130,9 @@ def save_training_data(training_samples, output_path):
     data = {
         'num_samples': len(training_samples),
         'feature_names': [
-            'v_ego','roll_lataccel','a_ego','error',
-            'error_integral','error_derivative',
-            'future_lataccel_mean','future_lataccel_std'
+            'v_ego', 'roll_lataccel', 'a_ego', 'error',
+            'error_integral', 'error_derivative',
+            'future_lataccel_mean', 'future_lataccel_std'
         ],
         'samples': [
             {'features': s[0], 'blend_weight': s[1]}
@@ -143,8 +158,12 @@ def main():
         random.seed(args.data_seed)
         np.random.seed(args.data_seed)
 
-    print("🏗️  BlenderNet Training Data Generation")
-    print("=" * 50)
+    print_banner(4, "Data Generation & Pre-Training")
+    print_params({
+        "archive": "plans/tournament_archive.json",
+        "sample count": args.samples,
+        "output path": args.output_path
+    })
 
     try:
         archive = load_tournament_archive()

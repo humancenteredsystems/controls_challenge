@@ -4,6 +4,7 @@ import numpy as np
 import json
 from pathlib import Path
 import argparse
+from utils.logging import print_banner, print_params, tqdm, EMOJI_PARTY, EMOJI_OK, EMOJI_TROPHY
 
 # Define where temporary controllers should live
 base_dir = Path(__file__).parent.parent
@@ -304,6 +305,18 @@ def main():
     )
     parser.add_argument("--init_seed", type=int, default=None)
     args = parser.parse_args()
+    # Stage banner and key parameters
+    stage_num = 3 if args.seed_from_archive and "plans/tournament_archive.json" in args.seed_from_archive else 2
+    stage_name = "PID Tournament #2" if stage_num == 3 else "PID Tournament #1"
+    print_banner(stage_num, stage_name)
+    print_params({
+        "rounds": args.rounds,
+        "population size": args.pop_size,
+        "elite %": args.elite_pct,
+        "revive %": args.revive_pct,
+        "max files": args.max_files,
+        "perturb scale": args.perturb_scale
+    })
 
     base_dir = Path(__file__).parent.parent
     data_files = [str(f) for f in sorted((base_dir / "data").glob("*.csv"))]

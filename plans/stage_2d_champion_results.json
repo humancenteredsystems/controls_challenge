@@ -1,7 +1,7 @@
 {
-  "champion_cost": 1000.0,
+  "champion_cost": 191.8318687393971,
   "tournament_2_baseline": 292.8309062270364,
-  "improvement": -707.1690937729636,
+  "improvement": 100.9990374876393,
   "best_architecture": {
     "hidden_sizes": [
       24,
@@ -10,7 +10,7 @@
     ],
     "dropout_rate": 0.05,
     "id": "07c69007",
-    "cost": 1000.0
+    "cost": 191.8318687393971
   },
   "best_pid_params": {
     "low_gains": [
