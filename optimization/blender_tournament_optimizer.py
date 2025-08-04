@@ -164,6 +164,7 @@ def train_blender_architecture(architecture, training_data, epochs=100):
 def evaluate_blender_architecture(architecture, training_data, data_files, model, baseline, max_files=20):
     """Evaluate architecture performance vs baseline."""
     onnx = train_blender_architecture(architecture, training_data)
+
     try:
         pid_pairs = get_top_pid_pairs_from_archive()
         costs=[]

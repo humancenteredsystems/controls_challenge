@@ -1,8 +1,10 @@
+import json
 import torch
 import torch.nn as nn
 import torch.onnx
 import numpy as np
 from pathlib import Path
+from torch.utils.data import DataLoader, TensorDataset
 
 class BlenderNet(nn.Module):
     """
@@ -166,6 +168,72 @@ def train_blender_net(training_data, epochs=100, lr=0.001):
             print(f'Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}')
     
     return model
+
+
+def train_blender_net_from_json(
+    data_path,
+    epochs=10,
+    batch_size=32,
+    model_output="models/neural_blender_pretrained.onnx",
+    lr=0.001,
+):
+    """Train BlenderNet from JSON dataset and export to ONNX.
+
+    Args:
+        data_path: Path to JSON file containing training samples.
+        epochs: Number of training epochs.
+        batch_size: Batch size for training.
+        model_output: Destination path for exported ONNX model.
+        lr: Learning rate for optimizer.
+
+    Returns:
+        Final training loss.
+    """
+
+    with open(data_path, "r") as f:
+        data = json.load(f)
+
+    samples = data.get("samples", [])
+    if not samples:
+        raise ValueError(f"No training samples found in {data_path}")
+
+    features = torch.tensor(
+        [s["features"] for s in samples], dtype=torch.float32
+    )
+    labels = torch.tensor(
+        [s["blend_weight"] for s in samples], dtype=torch.float32
+    ).unsqueeze(1)
+
+    dataset = TensorDataset(features, labels)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    model = BlenderNet()
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    model.train()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for X_batch, y_batch in loader:
+            optimizer.zero_grad()
+            outputs = model(X_batch)
+            loss = criterion(outputs, y_batch)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item() * X_batch.size(0)
+
+        epoch_loss = running_loss / len(dataset)
+        if (epoch + 1) % max(1, epochs // 5) == 0:
+            print(f"Epoch [{epoch+1}/{epochs}] Loss: {epoch_loss:.4f}")
+
+    model.eval()
+    with torch.no_grad():
+        final_loss = criterion(model(features), labels).item()
+
+    Path(model_output).parent.mkdir(parents=True, exist_ok=True)
+    model.export_to_onnx(model_output)
+
+    return final_loss
 
 if __name__ == "__main__":
     # Test BlenderNet creation and export
