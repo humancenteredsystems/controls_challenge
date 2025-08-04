@@ -21,7 +21,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
-from utils.logging import print_banner, print_params, print_summary, tqdm, EMOJI_PARTY, EMOJI_TROPHY, EMOJI_OK
+from utils.logging import print_banner, print_params, print_summary, print_goal_progress, tqdm, EMOJI_PARTY, EMOJI_TROPHY, EMOJI_OK
 
 def cleanup_artifacts() -> None:
     """Remove leftover temporary controllers and blender models."""
@@ -120,30 +120,44 @@ def train_architecture(architecture, training_data, epochs=100):
     arch_id = architecture['id']
     path = Path("models") / f"blender_{arch_id}.onnx"
     path.parent.mkdir(exist_ok=True)
-    print(f"    Training architecture {arch_id} for {epochs} epochs...")
+    print(f"    Training architecture {arch_id}... ", end="", flush=True)
     model = train_blender_net(training_data, epochs=epochs)
     model.export_to_onnx(str(path))
+    print("✅ Complete")
     return str(path)
 
 def evaluate_architecture_on_pid_pairs(architecture, training_data, pid_pairs, data_files, model, max_files=20):
-    """Evaluate architecture with multiple PID pairs."""
+    """Evaluate architecture with multiple PID pairs showing detailed total_cost tracking."""
     onnx_path = train_architecture(architecture, training_data)
     costs = []
     
     try:
         test_files = random.sample(data_files, min(max_files, len(data_files)))
-        for low_gains, high_gains in pid_pairs[:3]:  # Test on top 3 PID pairs
-            for test_file in test_files:
+        print(f"      Testing on {len(test_files)} files with {len(pid_pairs[:3])} PID pairs...")
+        
+        for pid_idx, (low_gains, high_gains) in enumerate(pid_pairs[:3]):  # Test on top 3 PID pairs
+            pid_costs = []
+            for file_idx, test_file in enumerate(test_files):
                 controller_name = create_temp_neural_controller(low_gains, high_gains, onnx_path, architecture['id'])
                 try:
                     cost_result, _, _ = run_rollout(test_file, controller_name, model)
-                    costs.append(cost_result["total_cost"])
+                    total_cost = cost_result["total_cost"]
+                    pid_costs.append(total_cost)
+                    costs.append(total_cost)
+                    print(f"        PID{pid_idx+1} File{file_idx+1}: total_cost={total_cost:.2f}")
                 except Exception:
                     costs.append(1e3)  # Penalty for failed evaluation
+                    print(f"        PID{pid_idx+1} File{file_idx+1}: FAILED (cost=1000.0)")
                 finally:
                     cleanup_temp_controller(controller_name)
+            
+            if pid_costs:
+                print(f"      → PID Pair {pid_idx+1} average: {np.mean(pid_costs):.2f}")
         
-        return float(np.mean(costs)) if costs else float('inf')
+        avg_cost = float(np.mean(costs)) if costs else float('inf')
+        print(f"    → Architecture {architecture['id']} overall average: {avg_cost:.2f}")
+        print_goal_progress(avg_cost)
+        return avg_cost
     finally:
         try:
             Path(onnx_path).unlink()
@@ -318,14 +332,15 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_
     for round_num in range(1, rounds + 1):
         print(f"\n--- Round {round_num}/{rounds} ---", flush=True)
         
-        # Evaluate architectures
-        for arch in tqdm(population, desc="Evaluating Architectures", unit="arch"):
+        # Evaluate architectures with detailed reporting
+        for arch_idx, arch in enumerate(population):
             if arch['cost'] == float('inf'):
+                print(f"  Architecture {arch_idx+1}/{len(population)} ({arch['id']})")
                 cost = evaluate_architecture_on_pid_pairs(arch, training_data, pid_pairs, data_files, model, max_files)
                 arch['cost'] = cost
                 if cost < best_overall['cost']:
                     best_overall = arch.copy()
-                    print(f" {EMOJI_PARTY} New best: {cost:.2f} (arch id: {arch['id']})", flush=True)
+                    print(f" {EMOJI_PARTY} New overall best: {cost:.2f} (arch id: {arch['id']})", flush=True)
         
         # Round summary
         population.sort(key=lambda x: x['cost'])

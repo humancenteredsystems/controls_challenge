@@ -34,3 +34,11 @@ def print_summary(summary_title, summary_dict):
     print(f"\n{EMOJI_TROPHY} {summary_title}", flush=True)
     for k, v in summary_dict.items():
         print(f"  - {k}: {v}", flush=True)
+
+def print_goal_progress(current_cost, goal=45.0):
+    """Track progress toward the <45 total_cost goal."""
+    if current_cost < goal:
+        print(f"🎯 GOAL ACHIEVED: {current_cost:.2f} < {goal}", flush=True)
+    else:
+        remaining = current_cost - goal
+        print(f"📊 Goal progress: {current_cost:.2f} (need to reduce by {remaining:.2f})", flush=True)
