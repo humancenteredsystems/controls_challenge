@@ -233,9 +233,9 @@ def main():
     # Stage 4 data generation
     parser.add_argument("--stage4-output-data", dest="stage4_output_data", type=str,
                         default="plans/blender_training_data.json", help="Output path for generated JSON training data")
-    parser.add_argument("--stage4-samples", dest="stage4_samples", type=int, default=50,
+    parser.add_argument("--stage4-samples", dest="stage4_samples", type=int, default=200,
                         help="Number of CSV samples per PID combo for data generation")
-    parser.add_argument("--stage4-epochs", dest="stage4_epochs", type=int, default=10,
+    parser.add_argument("--stage4-epochs", dest="stage4_epochs", type=int, default=100,
                         help="Number of pre-training epochs for neural blender")
     parser.add_argument("--stage4-batch-size", dest="stage4_batch_size", type=int, default=32,
                         help="Batch size for neural blender pre-training")
