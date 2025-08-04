@@ -3,3 +3,8 @@ data/
 report.html
 models/tinyphysics_*.onnx
 *.swp
+
+plans/*.json
+plans/*.bak
+optimization/blended_2pid_best_params_temp.json
+optimization/blended_2pid_optimization_progress.json

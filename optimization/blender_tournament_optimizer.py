@@ -22,6 +22,7 @@ if parent_dir not in sys.path:
 from tinyphysics_custom import run_rollout, TinyPhysicsModel
 from utils.logging import print_banner, print_params, print_summary, print_goal_progress, tqdm, EMOJI_PARTY, EMOJI_TROPHY, EMOJI_OK
 from utils.blending import get_smooth_blend_weight
+from .simple_blender_optimizer import get_top_pid_pairs_from_archive
 
 def cleanup_artifacts() -> None:
     """Remove leftover temporary controllers and blender models."""
@@ -93,6 +94,11 @@ def train_architecture(architecture, training_data_path, epochs=100, pretrained_
     print("✅ Complete")
     return str(model_output_path)
 
+
+def train_blender_architecture(architecture, training_data_path, epochs=100, pretrained_path=None):
+    """Backward-compatible wrapper for train_architecture."""
+    return train_architecture(architecture, training_data_path, epochs=epochs, pretrained_path=pretrained_path)
+
 def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pairs, data_files, model, max_files=20, pretrained_path=None):
     """Evaluate architecture with multiple PID pairs showing detailed total_cost tracking."""
     onnx_path = train_architecture(architecture, training_data_path, epochs=100, pretrained_path=pretrained_path)
@@ -129,6 +135,26 @@ def evaluate_architecture_on_pid_pairs(architecture, training_data_path, pid_pai
         try:
             Path(onnx_path).unlink()
         except:
+            pass
+
+
+def evaluate_blender_architecture(architecture, pid_pairs, data_files, model, baseline_cost):
+    """Backward-compatible wrapper for testing that ensures temporary artifacts are cleaned up."""
+    onnx_path = train_blender_architecture(architecture, pid_pairs)
+    try:
+        pairs = pid_pairs or get_top_pid_pairs_from_archive()
+        pairs = random.sample(pairs, min(len(pairs), 1))
+        costs = []
+        for low, high in pairs:
+            ctrl = _make_temp_neural_controller(low, high, onnx_path, architecture.get("id"))
+            res, _, _ = run_rollout(data_files[0], ctrl, model)
+            costs.append(res["total_cost"])
+            cleanup_temp_controller(ctrl)
+        return float(np.mean(costs)) if costs else float("inf")
+    finally:
+        try:
+            Path(onnx_path).unlink()
+        except Exception:
             pass
 
 def tournament_selection_and_evolution(population, elite_pct=0.3):
