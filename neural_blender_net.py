@@ -264,7 +264,7 @@ def train_blender_net_from_json(
     # Load pre-trained weights if path is provided
     if pretrained_path and Path(pretrained_path).exists():
         try:
-            model.load_state_dict(torch.load(pretrained_path))
+            model.load_state_dict(torch.load(pretrained_path, weights_only=False))
             print(f"Loaded pre-trained weights from {pretrained_path}")
         except Exception as e:
             print(f"⚠️ Could not load pre-trained weights: {e}. Training from scratch.")
@@ -322,6 +322,9 @@ def train_blender_net_from_json(
 
     Path(model_output).parent.mkdir(parents=True, exist_ok=True)
     model.export_to_onnx(model_output)
+
+    # Save the model in .pth format as well
+    torch.save(model.state_dict(), model_output.replace(".onnx", ".pth"))
 
     return {
         "train_loss": final_train_loss,

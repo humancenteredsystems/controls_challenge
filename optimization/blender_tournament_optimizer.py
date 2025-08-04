@@ -88,7 +88,7 @@ def train_architecture(architecture, training_data_path, epochs=100, pretrained_
         model_output=str(model_output_path),
         hidden_sizes=architecture['hidden_sizes'],
         dropout_rate=architecture['dropout_rate'],
-        pretrained_path=pretrained_path
+        pretrained_path=pretrained_path.replace(".onnx", ".pth") if pretrained_path else None
     )
     
     print("✅ Complete")
