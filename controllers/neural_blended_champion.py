@@ -5,8 +5,8 @@ import numpy as np
 
 class Controller(BaseController):
    def __init__(self):
-       self.pid1 = SpecializedPID(0.34, 0.027, -0.074)
-       self.pid2 = SpecializedPID(0.291, 0.006, -0.057)
+       self.pid1 = SpecializedPID(0.573, 0.12, -0.05)
+       self.pid2 = SpecializedPID(0.15, 0.08, -0.03)
        
        self.blender_session = ort.InferenceSession("models/neural_blender_champion.onnx",
            providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])

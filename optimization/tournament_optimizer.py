@@ -7,7 +7,7 @@ import argparse
 import sys, os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path: sys.path.insert(0, project_root)
-from utils.logging import print_banner, print_params, tqdm, EMOJI_PARTY, EMOJI_OK, EMOJI_TROPHY
+from utils.logging import print_banner, print_params, print_summary, tqdm, EMOJI_PARTY, EMOJI_OK, EMOJI_TROPHY
 
 # Define where temporary controllers should live
 base_dir = Path(__file__).parent.parent
@@ -256,18 +256,53 @@ def run_tournament(
         init_seed
     )
     archive: List[ParameterSet] = population.copy()
-    best_cost = float("inf")
-    for r in range(1, rounds+1):
-        for ps in population:
-            evaluate(ps, data_files_copy, model, max_files, rng)
-        elites = select_elites(population, elite_pct)
-        revived = revival_lottery(archive, revive_pct, pop_size)
-        best = min(elites, key=lambda ps: ps.stats.get("avg_total_cost", float("inf")))
-        if best.stats["avg_total_cost"] < best_cost:
-            best_cost = best.stats["avg_total_cost"]
-        new_sets = generate_new(pop_size - len(elites) - len(revived), best, perturb_scale)
-        archive.extend(new_sets + revived)
-        population = elites + revived + new_sets
+    best_overall_cost = float("inf")
+    best_overall_ps = None
+
+    for r in range(1, rounds + 1):
+        print(f"\n--- Round {r}/{rounds} ---", flush=True)
+        
+        # Evaluate population with a progress bar
+        for ps in tqdm(population, desc=f"Round {r} Evaluation", unit="ps"):
+            if ps.stats.get("avg_total_cost", float("inf")) == float("inf"):
+                evaluate(ps, data_files_copy, model, max_files, rng)
+
+        # Sort population by performance
+        population.sort(key=lambda ps: ps.stats.get("avg_total_cost", float("inf")))
+        
+        round_best_ps = population[0]
+        round_best_cost = round_best_ps.stats.get("avg_total_cost", float("inf"))
+
+        if best_overall_ps is None or round_best_cost < best_overall_cost:
+            best_overall_cost = round_best_cost
+            best_overall_ps = round_best_ps
+            print(f"{EMOJI_PARTY} New best cost in round {r}: {best_overall_cost:.2f} (ID: {best_overall_ps.id})", flush=True)
+
+        print_summary(f"Round {r} Summary", {
+            "Best Cost": f"{round_best_cost:.2f}",
+            "Avg Cost": f"{np.mean([p.stats.get('avg_total_cost', 0) for p in population]):.2f}",
+        })
+
+        if r < rounds:
+            elites = select_elites(population, elite_pct)
+            revived = revival_lottery(archive, revive_pct, pop_size)
+            
+            best_for_mutation = elites[0] if elites else population[0]
+            new_sets = generate_new(pop_size - len(elites) - len(revived), best_for_mutation, perturb_scale)
+            
+            archive.extend(new_sets)
+            population = elites + revived + new_sets
+            print(f"➡️  Next generation created with {len(elites)} elites, {len(revived)} revived, {len(new_sets)} new.", flush=True)
+
+    if best_overall_ps:
+        print(f"\n{EMOJI_TROPHY} Tournament Complete {EMOJI_TROPHY}")
+        print_summary("Overall Best Performer", {
+            "ID": best_overall_ps.id,
+            "Cost": f"{best_overall_cost:.2f}",
+            "Low Gains": best_overall_ps.low_gains,
+            "High Gains": best_overall_ps.high_gains,
+        })
+
     plans_dir = Path(__file__).parent.parent / "plans"
     plans_dir.mkdir(exist_ok=True)
     out = [{
@@ -276,7 +311,7 @@ def run_tournament(
         "high_gains": ps.high_gains,
         "stats": ps.stats
     } for ps in archive]
-    (plans_dir / "tournament_archive.json").write_text(json.dumps({"archive": out}, indent=2))
+    (plans_dir / "tournament_archive.json").write_text(json.dumps({"archive": out, "best_cost": best_overall_cost if best_overall_ps else None}, indent=2))
 
 def main():
     cleanup_artifacts()

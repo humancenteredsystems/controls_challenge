@@ -130,7 +130,8 @@ def generate_training_samples(top_performers, num_samples):
 
 def save_training_data(training_samples, output_path):
     """Save training data to JSON file."""
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     data = {
         'num_samples': len(training_samples),
         'feature_names': [
@@ -145,7 +146,8 @@ def save_training_data(training_samples, output_path):
     }
     with open(output_path, 'w') as f:
         json.dump(data, f, indent=2)
-    print(f"\n💾 Training data saved to: {output_path}")
+    print(f"\n{EMOJI_OK} Training data saved to: {output_path}")
+    print_summary("Data Generation Complete", {"Total Samples": len(training_samples)})
 
 def main():
     parser = argparse.ArgumentParser(description="BlenderNet training data generation")

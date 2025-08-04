@@ -21,16 +21,16 @@ def print_banner(stage_num, stage_name):
     """Print a bold banner for a pipeline stage."""
     banner = f"STAGE {stage_num}: {stage_name}" if stage_num is not None else stage_name
     sep = "=" * len(banner)
-    print(f"\n{EMOJI_LAB} {banner}\n{sep}")
+    print(f"\n{EMOJI_LAB} {banner}\n{sep}", flush=True)
 
 def print_params(params):
     """Print key parameters at the start of a stage."""
-    print("Parameters:")
+    print("Parameters:", flush=True)
     for k, v in params.items():
-        print(f"  - {k}: {v}")
+        print(f"  - {k}: {v}", flush=True)
 
 def print_summary(summary_title, summary_dict):
     """Print a concise summary after a major phase."""
-    print(f"\n{EMOJI_TROPHY} {summary_title}")
+    print(f"\n{EMOJI_TROPHY} {summary_title}", flush=True)
     for k, v in summary_dict.items():
-        print(f"  - {k}: {v}")
+        print(f"  - {k}: {v}", flush=True)

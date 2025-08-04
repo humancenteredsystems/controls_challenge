@@ -279,20 +279,29 @@ def run_blender_tournament(archive_path, data_files, model_path,
         data = create_training_data_from_archive(archive_path, data_files, model, samples_per_combo)
     pop=[dict(create_random_blender_architecture(), cost=float('inf')) for _ in range(pop_size)]
     best={'cost':float('inf')}
-    for r in range(1,rounds+1):
-        print(f"\n🏆 Round {r}/{rounds}")
-        for arch in tqdm(pop,desc="Evaluating architectures",unit="arch"):
-            if arch['cost']==float('inf'):
-                c=evaluate_blender_architecture(arch,data,data_files,model,baseline,max_files)
-                arch['cost']=c
-                if c<best['cost']:
-                    best=arch.copy()
-                    print(f"🎉 New overall best: {c:.2f} (id:{arch['id']})")
-        rb=min(pop,key=lambda x:x['cost'])
-        print(f"Round {r} complete — round best: {rb['cost']:.2f}")
-        if r<rounds:
-            pop=tournament_selection_and_mutation(pop)
-            print("➡️ Next generation created")
+    for r in range(1, rounds + 1):
+        print(f"\n--- Round {r}/{rounds} ---", flush=True)
+        
+        for arch in tqdm(pop, desc="Evaluating Architectures", unit="arch"):
+            if arch.get('cost', float('inf')) == float('inf'):
+                cost = evaluate_blender_architecture(arch, data, data_files, model, baseline, max_files)
+                arch['cost'] = cost
+                if cost < best.get('cost', float('inf')):
+                    best = arch.copy()
+                    print(f" {EMOJI_PARTY} New best: {cost:.2f} (arch id: {arch['id']})", flush=True)
+
+        pop.sort(key=lambda x: x.get('cost', float('inf')))
+        round_best = pop[0]
+        
+        print_summary(f"Round {r} Summary", {
+            "Round Best Cost": f"{round_best.get('cost', 'N/A'):.2f}",
+            "Overall Best Cost": f"{best.get('cost', 'N/A'):.2f}",
+        })
+
+        if r < rounds:
+            pop = tournament_selection_and_mutation(pop)
+            print("➡️  Next generation created", flush=True)
+    
     imp=baseline-best['cost']
     print("\n🎯 Stage 5 Results:")
     print(f"  Baseline: {baseline:.2f}")
