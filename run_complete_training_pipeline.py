@@ -149,7 +149,24 @@ def run_stage_4_data_generation(args):
     if seed is not None:
         cmd += ["--data-seed", str(seed)]
     subprocess.run(cmd, check=False)
+
+    # Report data generation results
     print_results_summary("Data Generation", args.stage4_output_data)
+
+    # Train BlenderNet on generated data
+    from neural_blender_net import train_blender_net_from_json
+
+    final_loss = train_blender_net_from_json(
+        args.stage4_output_data,
+        epochs=args.stage4_epochs,
+        batch_size=args.stage4_batch_size,
+        model_output=args.stage4_model_output,
+    )
+
+    # Report training results including final loss and model path
+    print_results_summary(
+        f"Pre-Training - Loss {final_loss:.4f}", args.stage4_model_output
+    )
     return True
 
 def run_stage_5_blender_tournament(args):

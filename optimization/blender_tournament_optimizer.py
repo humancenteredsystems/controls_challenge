@@ -77,9 +77,28 @@ def create_training_data_from_archive(archive_path, data_files, model, num_sampl
     })
     out = Path("plans/blender_training_data.json")
     out.parent.mkdir(exist_ok=True)
+    data = {
+        "num_samples": len(samples),
+        "feature_names": [
+            "v_ego", "roll_lataccel", "a_ego", "error",
+            "error_integral", "error_derivative",
+            "future_lataccel_mean", "future_lataccel_std"
+        ],
+        "samples": [
+            {"features": feat, "blend_weight": w} for feat, w in samples
+        ],
+    }
     with open(out, 'w') as f:
-        json.dump(samples, f, indent=2)
+        json.dump(data, f, indent=2)
     return samples
+
+def load_training_data(path: Path):
+    """Load training samples from JSON file."""
+    with open(path, 'r') as f:
+        data = json.load(f)
+    if isinstance(data, dict) and "samples" in data:
+        return [(s["features"], s["blend_weight"]) for s in data["samples"]]
+    return data
 
 def find_optimal_blend_weight(pid1_params, pid2_params, data_file, model):
     """Find optimal blend weight via discrete search using run_rollout."""
@@ -145,6 +164,7 @@ def train_blender_architecture(architecture, training_data, epochs=100):
 def evaluate_blender_architecture(architecture, training_data, data_files, model, baseline, max_files=20):
     """Evaluate architecture performance vs baseline."""
     onnx = train_blender_architecture(architecture, training_data)
+
     costs = []
     try:
         pid_pairs = get_top_pid_pairs_from_archive()
@@ -164,6 +184,7 @@ def evaluate_blender_architecture(architecture, training_data, data_files, model
     finally:
         try:
             Path(onnx).unlink()
+
         except Exception:
             pass
 
@@ -250,7 +271,12 @@ def run_blender_tournament(archive_path, data_files, model_path,
     baseline=get_tournament_2_baseline(archive_path)
     model=TinyPhysicsModel(model_path,debug=False)
     print("Blender Tournament: GPU Enabled")
-    data=create_training_data_from_archive(archive_path,data_files,model,samples_per_combo)
+    data_path = Path("plans/blender_training_data.json")
+    if data_path.exists():
+        print("📂 Loading existing training data")
+        data = load_training_data(data_path)
+    else:
+        data = create_training_data_from_archive(archive_path, data_files, model, samples_per_combo)
     pop=[dict(create_random_blender_architecture(), cost=float('inf')) for _ in range(pop_size)]
     best={'cost':float('inf')}
     for r in range(1,rounds+1):
