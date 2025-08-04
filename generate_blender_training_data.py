@@ -87,37 +87,69 @@ def generate_training_samples(top_performers, num_samples):
     total_performers = len(top_performers)
     samples_per_combo = num_samples // total_performers
 
+    # Define speed bins to ensure balanced coverage across driving regimes.
+    # Low speeds (<25 mph) typify city driving, medium speeds (25–45 mph)
+    # represent transitional/suburban travel, and high speeds (45–70 mph)
+    # capture highway conditions. Sampling an equal number from each bin
+    # prevents the training set from being biased toward any one regime.
+    speed_bins = [
+        ("low", 5, 25),
+        ("medium", 25, 45),
+        ("high", 45, 70),
+    ]
+    num_bins = len(speed_bins)
+
     for idx, combo in enumerate(tqdm(top_performers, desc="Combos", unit="combo"), start=1):
         combo_samples = []
-        for _ in tqdm(range(samples_per_combo), desc=" Samples", leave=False, unit="sample"):
-            v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
-            roll_lataccel = np.clip(np.random.normal(0, 1.5), -4, 4)
-            a_ego = np.clip(np.random.normal(0, 1.0), -3, 3)
-            error = np.clip(np.random.laplace(0, 0.3), -2, 2)
-            error_integral = np.clip(np.random.normal(0, 0.2), -1, 1)
-            error_derivative = np.clip(np.random.normal(0, 0.1), -0.5, 0.5)
-            future_lataccel_std = np.clip(np.random.exponential(0.5), 0, 2)
-            features = [
-                v_ego, roll_lataccel, a_ego,
-                error, error_integral, error_derivative,
-                np.clip(np.random.normal(0, 1.0), -3, 3),
-                future_lataccel_std
-            ]
-            blend = compute_optimal_blend_weight(v_ego, abs(error), future_lataccel_std,
-                                                 "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal")
-            combo_samples.append((features, blend))
+
+        # Determine how many samples to draw for each bin so each bin
+        # contributes equally. Any remainder is distributed across the first
+        # few bins.
+        base_count = samples_per_combo // num_bins
+        remainder = samples_per_combo % num_bins
+        bin_counts = [base_count + (1 if i < remainder else 0) for i in range(num_bins)]
+
+        for (bin_name, v_min, v_max), bin_count in zip(speed_bins, bin_counts):
+            for _ in tqdm(range(bin_count), desc=f" Samples ({bin_name})", leave=False, unit="sample"):
+                v_ego = np.random.uniform(v_min, v_max)
+                roll_lataccel = np.clip(np.random.normal(0, 1.5), -4, 4)
+                a_ego = np.clip(np.random.normal(0, 1.0), -3, 3)
+                error = np.clip(np.random.laplace(0, 0.3), -2, 2)
+                error_integral = np.clip(np.random.normal(0, 0.2), -1, 1)
+                error_derivative = np.clip(np.random.normal(0, 0.1), -0.5, 0.5)
+                future_lataccel_std = np.clip(np.random.exponential(0.5), 0, 2)
+                features = [
+                    v_ego, roll_lataccel, a_ego,
+                    error, error_integral, error_derivative,
+                    np.clip(np.random.normal(0, 1.0), -3, 3),
+                    future_lataccel_std
+                ]
+                blend = compute_optimal_blend_weight(
+                    v_ego,
+                    abs(error),
+                    future_lataccel_std,
+                    "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
+                )
+                combo_samples.append((features, blend))
 
         training_samples.extend(combo_samples)
         print(f"  ✅ Generated {len(combo_samples)} samples for combo {idx}/{total_performers}")
 
     # Fill any remainder
+    remainder_idx = 0
     while len(training_samples) < num_samples:
         combo = random.choice(top_performers)
-        v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
+        bin_name, v_min, v_max = speed_bins[remainder_idx % num_bins]
+        remainder_idx += 1
+        v_ego = np.random.uniform(v_min, v_max)
         error = np.clip(np.random.laplace(0, 0.3), -2, 2)
         future_complexity = np.clip(np.random.exponential(0.5), 0, 2)
-        blend = compute_optimal_blend_weight(v_ego, abs(error), future_complexity,
-                                             "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal")
+        blend = compute_optimal_blend_weight(
+            v_ego,
+            abs(error),
+            future_complexity,
+            "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
+        )
         features = [v_ego, 0, 0, error, 0, 0, 0, future_complexity]
         training_samples.append((features, blend))
 
