@@ -182,16 +182,49 @@ def create_temp_neural_controller(low_gains, high_gains, onnx_path, arch_id):
         f.write(code)
     return name
 
-
-def _make_temp_neural_controller(low_gains, high_gains, onnx_path, arch_id):
-    """Backward-compatible alias for create_temp_neural_controller."""
-    return create_temp_neural_controller(low_gains, high_gains, onnx_path, arch_id)
+# Backwards compatibility for tests expecting a private helper
+_make_temp_neural_controller = create_temp_neural_controller
 
 def cleanup_temp_controller(name):
     """Remove temporary controller file."""
     path = Path("controllers") / f"{name}.py"
     if path.exists():
         path.unlink()
+
+def get_top_pid_pairs_from_archive():
+    """Placeholder for retrieving PID pairs from the tournament archive.
+
+    Expected to be monkeypatched in tests.
+    """
+    raise NotImplementedError("get_top_pid_pairs_from_archive is not implemented")
+
+def train_blender_architecture(architecture, training_data):
+    """Placeholder training routine for a blender architecture.
+
+    Returns the path to an ONNX model for the provided architecture. This
+    function is expected to be monkeypatched in tests and during real training.
+    """
+    raise NotImplementedError("train_blender_architecture is not implemented")
+
+
+def evaluate_blender_architecture(architecture, training_data, data_files, model, max_files):
+    """Evaluate a single blender architecture and ensure artifacts are cleaned up."""
+    onnx_path = train_blender_architecture(architecture, training_data)
+    try:
+        pid_pairs = get_top_pid_pairs_from_archive()
+        test_files = random.sample(data_files, min(max_files, len(data_files))) if max_files > 0 else data_files
+        pid1, pid2 = pid_pairs[0]
+        controller_name = _make_temp_neural_controller(pid1, pid2, onnx_path, architecture["id"])
+        try:
+            result, _, _ = run_rollout(test_files[0], controller_name, model)
+            return result["total_cost"]
+        finally:
+            cleanup_temp_controller(controller_name)
+    finally:
+        try:
+            os.remove(onnx_path)
+        except OSError:
+            pass
 
 def get_tournament_baseline(archive_path):
     """Get baseline cost from tournament archive."""
