@@ -18,3 +18,10 @@ Current tournament optimizer uses GPU acceleration and achieves a 41.6% cost red
 - **Phase 3 (4–6 wks):** scenario-aware architecture aiming for avg cost <45 with std <25.
 
 Achieving these steps unlocks consistent sub‑45 performance within a few months.
+
+## Neural Blender Progress
+
+- Neural blender architecture and training data pipeline are in place.
+- Tournament #2's best PID parameters seed the neural experiments.
+- Early neural blender tournament runs exposed evaluation issues, so the neural evaluation pipeline needs debugging.
+- Next actions: fix the evaluation path, train BlenderNet models, and compare the neural blended controller against the PID champion.

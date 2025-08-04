@@ -17,6 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tinyphysics_custom import run_rollout
 
+BASE_DIR = Path(__file__).resolve().parent
+
 class Blended2PIDOptimizer:
     """Enhanced grid search optimization for blended 2-PID controllers"""
     
@@ -142,7 +144,8 @@ class Controller(BaseController):
         print("Starting comprehensive blended 2-PID optimization:")
         print(f" - {num_combinations} combinations, {max_files_per_test} files/test, {len(data_files)} total")
         combos = self.define_comprehensive_search_space(num_combinations)
-        results, progress_file = [], "blended_2pid_optimization_progress.json"
+        results = []
+        progress_file = BASE_DIR / "blended_2pid_optimization_progress.json"
         for i, (low, high) in enumerate(tqdm(combos, desc="Testing combos")):
             try:
                 start = time.time()
@@ -161,7 +164,7 @@ class Controller(BaseController):
                         self.best_cost=entry["avg_total_cost"]
                         self.best_params=(low,high)
                         print(f"🎉 New best: {self.best_cost:.2f}")
-                        with open("blended_2pid_best_params_temp.json","w") as pf:
+                        with open(BASE_DIR / "blended_2pid_best_params_temp.json", "w") as pf:
                             json.dump({"low":low,"high":high,"cost":self.best_cost,"id":i},pf,indent=2)
                 if (i+1)%25==0:
                     with open(progress_file,"w") as pf:
