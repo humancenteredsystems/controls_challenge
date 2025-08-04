@@ -22,34 +22,29 @@ def generate_blended_controller(low_gains: List[float], high_gains: List[float])
     # by virtue of the template string below. The local definition has been removed.
     return f'''from controllers import BaseController
 from controllers.shared_pid import SpecializedPID
+from utils.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     def __init__(self):
         self.low_speed_pid = SpecializedPID({low_gains[0]}, {low_gains[1]}, {low_gains[2]})
         self.high_speed_pid = SpecializedPID({high_gains[0]}, {high_gains[1]}, {high_gains[2]})
-        
+
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         error = target_lataccel - current_lataccel
         v_ego = state.v_ego
-        
+
         # Get outputs from both controllers
         low_output = self.low_speed_pid.update(error)
         high_output = self.high_speed_pid.update(error)
-        
-        # Smooth velocity-based blending with sigmoid transition
-        # Threshold: 15 m/s (~33 mph), transition zone: ±2.5 m/s
-        import math
-        def smooth_blend_weight(v_ego, threshold=15.0, smoothness=1.5):
-            return 1.0 / (1.0 + math.exp(-(v_ego - threshold) / smoothness))
-        
+
         # Calculate smooth blend weights
-        blend_weight = smooth_blend_weight(v_ego)
+        blend_weight = get_smooth_blend_weight(v_ego)
         low_weight = 1.0 - blend_weight
         high_weight = blend_weight
-        
+
         # Blend outputs using smooth weights
         blended_output = (low_weight * low_output + high_weight * high_output)
-        
+
         return blended_output
 '''
 

@@ -100,7 +100,7 @@ class Blended2PIDOptimizer:
         """Test a single blended 2-PID controller combination"""
         controller_content = f'''from . import BaseController
 from controllers.shared_pid import SpecializedPID
-import math
+from utils.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     def __init__(self):
@@ -111,9 +111,7 @@ class Controller(BaseController):
         v_ego = state.v_ego
         low = self.low_speed_pid.update(error)
         high = self.high_speed_pid.update(error)
-        def smooth_blend_weight(v_ego, threshold=15.0, smoothness=1.5):
-            return 1.0 / (1.0 + math.exp(-(v_ego - threshold) / smoothness))
-        blend_weight = smooth_blend_weight(v_ego)
+        blend_weight = get_smooth_blend_weight(v_ego)
         return (1.0 - blend_weight) * low + blend_weight * high
 '''
         base_dir = Path(__file__).parent.parent

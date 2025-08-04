@@ -41,6 +41,7 @@ class Controller(BaseController):
         low_output = self.low_speed_pid.update(error)
         high_output = self.high_speed_pid.update(error)
         
+
         # Smooth velocity-based blending with sigmoid transition
         # Threshold: 15 m/s (~33 mph), transition zone: ±2.5 m/s
         # Calculate blend weight (0.0 = all low-speed, 1.0 = all high-speed)

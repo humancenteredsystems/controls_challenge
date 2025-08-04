@@ -270,13 +270,6 @@ def create_champion_controller(best_arch, best_pid_pair, archive_path):
     
     print(f"{EMOJI_OK} Champion controller ready: controllers/neural_blended_champion.py")
 
-def find_optimal_blend_weight(data_file, model):
-    """
-    This function is now deprecated as the blending logic is centralized.
-    This function is no longer used.
-    """
-    pass
-
 def extract_state_from_file(data_file):
     """Extract state information from CSV file."""
     import pandas as pd
