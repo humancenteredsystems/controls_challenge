@@ -66,8 +66,31 @@ def analyze_archive_performance(archive):
 
     return top_performers
 
-def compute_optimal_blend_weight(v_ego, error_magnitude, future_complexity, scenario_type="normal"):
-    """Compute optimal blend weight based on vehicle state and scenario."""
+def compute_optimal_blend_weight(
+    v_ego,
+    error_magnitude,
+    future_complexity,
+    scenario_type="normal",
+    bias: float = 0.0,
+):
+    """Compute optimal blend weight based on vehicle state and scenario.
+
+    Parameters
+    ----------
+    v_ego : float
+        Ego vehicle speed.
+    error_magnitude : float
+        Absolute control error.
+    future_complexity : float
+        Heuristic of upcoming path complexity.
+    scenario_type : str, optional
+        Scenario label ("highway", "city", "normal"), by default "normal".
+    bias : float, optional
+        Additional adjustment applied to the final blend weight. Used to nudge
+        sampling toward underrepresented blend weight categories when
+        generating training data.
+    """
+
     speed_blend = np.clip((v_ego - 20) / 30, 0, 1)
     error_adjustment = 0.2 if error_magnitude > 0.5 else -0.2
     complexity_adjustment = 0.1 if future_complexity > 0.7 else -0.1
@@ -77,60 +100,95 @@ def compute_optimal_blend_weight(v_ego, error_magnitude, future_complexity, scen
         scenario_adjustment = -0.1
     else:
         scenario_adjustment = 0.0
-    optimal_blend = speed_blend + error_adjustment + complexity_adjustment + scenario_adjustment
+    optimal_blend = (
+        speed_blend
+        + error_adjustment
+        + complexity_adjustment
+        + scenario_adjustment
+        + bias
+    )
     return float(np.clip(optimal_blend, 0.0, 1.0))
 
 def generate_training_samples(top_performers, num_samples):
-    """Generate training samples for BlenderNet with progress bars and summaries."""
+    """Generate training samples for BlenderNet with balanced blend weights.
+
+    The generator keeps track of the proportion of low (<0.3), mid and high
+    (>0.7) blend weights. Sampling is resubmitted with a bias toward the most
+    underrepresented category until the final distribution is within ±5% of the
+    target ratios (uniform by default).
+    """
+
     print(f"\n🔬 Generating {num_samples} training samples...")
     training_samples = []
     total_performers = len(top_performers)
     samples_per_combo = num_samples // total_performers
 
-    # Define speed bins to ensure balanced coverage across driving regimes.
-    # Low speeds (<25 mph) typify city driving, medium speeds (25–45 mph)
-    # represent transitional/suburban travel, and high speeds (45–70 mph)
-    # capture highway conditions. Sampling an equal number from each bin
-    # prevents the training set from being biased toward any one regime.
-    speed_bins = [
-        ("low", 5, 25),
-        ("medium", 25, 45),
-        ("high", 45, 70),
-    ]
-    num_bins = len(speed_bins)
+    categories = {"low": 0, "mid": 0, "high": 0}
+    target_ratio = 1.0 / 3.0
+    target_counts = {
+        "low": int(target_ratio * num_samples),
+        "mid": int(target_ratio * num_samples),
+        "high": int(target_ratio * num_samples),
+    }
+    # Adjust for rounding errors
+    while sum(target_counts.values()) < num_samples:
+        target_counts["mid"] += 1
+
+    def categorize(blend):
+        if blend < 0.3:
+            return "low"
+        if blend > 0.7:
+            return "high"
+        return "mid"
+
+    def deficit(category):
+        return target_counts[category] - categories[category]
 
     for idx, combo in enumerate(tqdm(top_performers, desc="Combos", unit="combo"), start=1):
         combo_samples = []
+        for _ in tqdm(range(samples_per_combo), desc=" Samples", leave=False, unit="sample"):
+            while True:
+                v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
 
-        # Determine how many samples to draw for each bin so each bin
-        # contributes equally. Any remainder is distributed across the first
-        # few bins.
-        base_count = samples_per_combo // num_bins
-        remainder = samples_per_combo % num_bins
-        bin_counts = [base_count + (1 if i < remainder else 0) for i in range(num_bins)]
-
-        for (bin_name, v_min, v_max), bin_count in zip(speed_bins, bin_counts):
-            for _ in tqdm(range(bin_count), desc=f" Samples ({bin_name})", leave=False, unit="sample"):
-                v_ego = np.random.uniform(v_min, v_max)
                 roll_lataccel = np.clip(np.random.normal(0, 1.5), -4, 4)
                 a_ego = np.clip(np.random.normal(0, 1.0), -3, 3)
                 error = np.clip(np.random.laplace(0, 0.3), -2, 2)
                 error_integral = np.clip(np.random.normal(0, 0.2), -1, 1)
                 error_derivative = np.clip(np.random.normal(0, 0.1), -0.5, 0.5)
                 future_lataccel_std = np.clip(np.random.exponential(0.5), 0, 2)
-                features = [
-                    v_ego, roll_lataccel, a_ego,
-                    error, error_integral, error_derivative,
-                    np.clip(np.random.normal(0, 1.0), -3, 3),
-                    future_lataccel_std
-                ]
+
+                bias = 0.0
+                # steer sampling toward underrepresented categories
+                most_needed = max(categories, key=lambda c: deficit(c))
+                if most_needed == "low":
+                    bias = -0.2
+                elif most_needed == "high":
+                    bias = 0.2
+
                 blend = compute_optimal_blend_weight(
                     v_ego,
                     abs(error),
                     future_lataccel_std,
                     "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
+
+                    bias=bias,
                 )
-                combo_samples.append((features, blend))
+                cat = categorize(blend)
+                if categories[cat] < target_counts[cat]:
+                    features = [
+                        v_ego,
+                        roll_lataccel,
+                        a_ego,
+                        error,
+                        error_integral,
+                        error_derivative,
+                        np.clip(np.random.normal(0, 1.0), -3, 3),
+                        future_lataccel_std,
+                    ]
+                    combo_samples.append((features, blend))
+                    categories[cat] += 1
+                    break
+
 
         training_samples.extend(combo_samples)
         print(f"  ✅ Generated {len(combo_samples)} samples for combo {idx}/{total_performers}")
@@ -139,25 +197,40 @@ def generate_training_samples(top_performers, num_samples):
     remainder_idx = 0
     while len(training_samples) < num_samples:
         combo = random.choice(top_performers)
-        bin_name, v_min, v_max = speed_bins[remainder_idx % num_bins]
-        remainder_idx += 1
-        v_ego = np.random.uniform(v_min, v_max)
-        error = np.clip(np.random.laplace(0, 0.3), -2, 2)
-        future_complexity = np.clip(np.random.exponential(0.5), 0, 2)
-        blend = compute_optimal_blend_weight(
-            v_ego,
-            abs(error),
-            future_complexity,
-            "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
-        )
-        features = [v_ego, 0, 0, error, 0, 0, 0, future_complexity]
-        training_samples.append((features, blend))
 
-    print_summary("Training Samples Summary", {
-        "total_samples": len(training_samples),
-        "samples_per_combo": samples_per_combo,
-        "combos": total_performers
-    })
+        while True:
+            v_ego = np.clip(np.random.gamma(2, 15), 5, 70)
+            error = np.clip(np.random.laplace(0, 0.3), -2, 2)
+            future_complexity = np.clip(np.random.exponential(0.5), 0, 2)
+
+            most_needed = max(categories, key=lambda c: deficit(c))
+            bias = -0.2 if most_needed == "low" else 0.2 if most_needed == "high" else 0.0
+
+            blend = compute_optimal_blend_weight(
+                v_ego,
+                abs(error),
+                future_complexity,
+                "highway" if v_ego > 50 else "city" if v_ego < 25 else "normal",
+                bias=bias,
+            )
+            cat = categorize(blend)
+            if categories[cat] < target_counts[cat]:
+                features = [v_ego, 0, 0, error, 0, 0, 0, future_complexity]
+                training_samples.append((features, blend))
+                categories[cat] += 1
+                break
+
+    proportions = {k: v / num_samples for k, v in categories.items()}
+    print_summary(
+        "Training Samples Summary",
+        {
+            "total_samples": len(training_samples),
+            "samples_per_combo": samples_per_combo,
+            "combos": total_performers,
+            "blend_weight_proportions": proportions,
+        },
+    )
+
     return training_samples
 
 def save_training_data(training_samples, output_path):
