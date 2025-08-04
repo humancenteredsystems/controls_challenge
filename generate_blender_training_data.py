@@ -11,6 +11,10 @@ import json
 import numpy as np
 import random
 from pathlib import Path
+import sys, os
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 from utils.logging import print_banner, print_params, print_summary, tqdm, EMOJI_LAB, EMOJI_OK
 
 def load_tournament_archive(archive_path="plans/tournament_archive.json"):

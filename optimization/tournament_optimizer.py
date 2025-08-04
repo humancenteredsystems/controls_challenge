@@ -4,6 +4,9 @@ import numpy as np
 import json
 from pathlib import Path
 import argparse
+import sys, os
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path: sys.path.insert(0, project_root)
 from utils.logging import print_banner, print_params, tqdm, EMOJI_PARTY, EMOJI_OK, EMOJI_TROPHY
 
 # Define where temporary controllers should live

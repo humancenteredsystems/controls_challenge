@@ -91,7 +91,7 @@ def run_stage_1_grid_search(args):
         "--data_dir", args.data_dir or ""
     ]
     if args.data_seed is not None:
-        cmd += ["--data-seed", str(args.data_seed)]
+        cmd += ["--data_seed", str(args.data_seed)]
     subprocess.run(cmd, check=False)
     print_results_summary("Grid Search", "blended_2pid_comprehensive_results.json")
     return True
@@ -112,7 +112,7 @@ def run_stage_2_tournament_1(args):
     if args.t1_init_seed is not None:
         cmd += ["--init_seed", str(args.t1_init_seed)]
     if args.data_seed is not None:
-        cmd += ["--data-seed", str(args.data_seed)]
+        cmd += ["--data_seed", str(args.data_seed)]
     subprocess.run(cmd, check=False)
     print_results_summary("Tournament #1", "plans/tournament_archive.json")
     return True
@@ -133,7 +133,7 @@ def run_stage_3_tournament_2(args):
     if args.t2_init_seed is not None:
         cmd += ["--init_seed", str(args.t2_init_seed)]
     if args.data_seed is not None:
-        cmd += ["--data-seed", str(args.data_seed)]
+        cmd += ["--data_seed", str(args.data_seed)]
     subprocess.run(cmd, check=False)
     print_results_summary("Tournament #2", "plans/tournament_archive.json")
     return True
@@ -180,7 +180,7 @@ def run_stage_5_blender_tournament(args):
         "--max_files", str(args.blender_max_files)
     ]
     if args.data_seed is not None:
-        cmd += ["--data-seed", str(args.data_seed)]
+        cmd += ["--data_seed", str(args.data_seed)]
     subprocess.run(cmd, check=False)
     print_results_summary("Blender Tournament", "plans/blender_tournament_results.json")
     return True
