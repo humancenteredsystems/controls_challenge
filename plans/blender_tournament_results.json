@@ -1,14 +1,13 @@
 {
-  "best_cost": 2791.7895400896095,
-  "baseline_cost": 931.3725366438714,
-  "improvement": -1860.4170034457381,
+  "best_cost": 1564.7328346149493,
+  "baseline_cost": 817.600763050863,
+  "improvement": -747.1320715640863,
   "winning_architecture": {
-    "id": "ed18bea2",
+    "id": "10c7c610",
     "hidden_sizes": [
       16,
-      16,
-      24
+      16
     ],
-    "dropout_rate": 0.1
+    "dropout_rate": 0.15
   }
 }
