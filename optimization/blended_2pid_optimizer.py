@@ -197,5 +197,17 @@ def main():
     optimizer.print_top_results(results, top_n=15)
     optimizer.save_comprehensive_results(results)
 
+    if optimizer.best_params is None:
+        raise RuntimeError("Optimization completed without finding valid parameters")
+
+    params_path = base_dir / "blended_2pid_params.json"
+    with open(params_path, "w") as f:
+        json.dump({
+            "low_gains": optimizer.best_params[0],
+            "high_gains": optimizer.best_params[1],
+            "best_cost": optimizer.best_cost,
+        }, f, indent=2)
+    print(f"Saved best parameters to {params_path}")
+
 if __name__ == "__main__":
     main()
