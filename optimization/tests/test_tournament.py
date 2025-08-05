@@ -88,3 +88,11 @@ def test_generate_new_variation_and_count():
         assert ps.rounds_survived == 0
         # Ensure exploration: at least one gain differs
         assert (ps.low_gains != base_low_gains or ps.high_gains != base_high_gains)
+
+
+def test_initialize_population_invalid_archive_raises(tmp_path):
+    archive_path = tmp_path / "archive.json"
+    archive_path.write_text("{}")
+    with pytest.raises(RuntimeError) as exc:
+        topt.initialize_population(5, seed_from_archive=str(archive_path))
+    assert str(archive_path) in str(exc.value)
