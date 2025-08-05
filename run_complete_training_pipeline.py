@@ -19,6 +19,20 @@ import argparse
 from pathlib import Path
 import shutil
 
+
+def run_command(cmd):
+    """Run a subprocess command and halt on failure.
+
+    Prints the failing command for easier debugging if a non-zero exit
+    status is encountered.
+    """
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        failed_cmd = " ".join(map(str, cmd))
+        print(f"❌ Command failed (exit code {e.returncode}): {failed_cmd}")
+        raise
+
 def print_stage_header(stage_num, stage_name):
     """Print formatted stage header"""
     print("\n" + "=" * 80)
@@ -92,7 +106,7 @@ def run_stage_1_grid_search(args):
     ]
     if args.data_seed is not None:
         cmd += ["--data_seed", str(args.data_seed)]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
     print_results_summary("Grid Search", "blended_2pid_comprehensive_results.json")
     return True
 
@@ -113,7 +127,7 @@ def run_stage_2_tournament_1(args):
         cmd += ["--init_seed", str(args.t1_init_seed)]
     if args.data_seed is not None:
         cmd += ["--data_seed", str(args.data_seed)]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
     print_results_summary("Tournament #1", "plans/tournament_archive.json")
     return True
 
@@ -134,7 +148,7 @@ def run_stage_3_tournament_2(args):
         cmd += ["--init_seed", str(args.t2_init_seed)]
     if args.data_seed is not None:
         cmd += ["--data_seed", str(args.data_seed)]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
     print_results_summary("Tournament #2", "plans/tournament_archive.json")
     return True
 
@@ -148,7 +162,7 @@ def run_stage_4_data_generation(args):
     seed = args.stage4_data_seed if args.stage4_data_seed is not None else args.data_seed
     if seed is not None:
         cmd += ["--data-seed", str(seed)]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
 
     # Report data generation results
     print_results_summary("Data Generation", args.stage4_output_data)
@@ -162,7 +176,7 @@ def run_stage_4_data_generation(args):
         "--batch-size", str(args.stage4_batch_size),
         "--lr", str(args.stage4_lr)
     ]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
 
     # Report training results
     print_results_summary("Training", args.stage4_model_output.replace(".onnx", ".pth"))
@@ -180,7 +194,7 @@ def run_stage_5_blender_tournament(args):
     ]
     if args.data_seed is not None:
         cmd += ["--data_seed", str(args.data_seed)]
-    subprocess.run(cmd, check=False)
+    run_command(cmd)
     print_results_summary("Blender Tournament", "plans/blender_tournament_results.json")
     return True
 
