@@ -91,6 +91,7 @@ def _make_temp_controller(ps: ParameterSet) -> str:
     Raises:
         RuntimeError: If the controller file cannot be written.
     """
+    from optimization import generate_blended_controller
     content = generate_blended_controller(ps.low_gains, ps.high_gains)
     Path(target_dir).mkdir(parents=True, exist_ok=True)
     module_name = f"temp_{ps.id.replace('-', '')}"

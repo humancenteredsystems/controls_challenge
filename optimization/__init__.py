@@ -83,22 +83,23 @@ class Controller(BaseController):
 {normalization_block}
    def update(self, target_lataccel, current_lataccel, state, future_plan):
        error = target_lataccel - current_lataccel
-       # Update PID controllers and get their outputs
-       pid1_output = self.pid1.update(error)
-       pid2_output = self.pid2.update(error)
        
-       # Extract features for the neural blender
+       # Extract features for the neural blender BEFORE PID update
        features = np.array([[
            state.v_ego,
            state.roll_lataccel,
            state.a_ego,
            error,
            self.pid1.error_integral,
-           self.pid1.error_derivative, # Use the derivative from the PID controller
+           (error - self.pid1.prev_error) / 0.1, # Correct derivative calculation
            np.mean(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0,
            np.std(future_plan.lataccel) if len(future_plan.lataccel) > 0 else 0.0
        ]], dtype=np.float32)
 {feature_processing_block}
+       # Update PID controllers and get their outputs
+       pid1_output = self.pid1.update(error)
+       pid2_output = self.pid2.update(error)
+       
        # Run inference
        blend_weight = self.blender_session.run(None, {{'input': features}})[0][0]
        blend_weight = np.clip(float(blend_weight), 0.0, 1.0)

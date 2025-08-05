@@ -317,10 +317,10 @@ def train_blender_net_from_json(
         final_val_loss /= len(val_dataset)
 
     Path(model_output).parent.mkdir(parents=True, exist_ok=True)
-    model.export_to_onnx(model_output)
-
-    # Save the model in .pth format as well
-    torch.save(model.state_dict(), model_output.replace(".onnx", ".pth"))
+    
+    # Save the model in .pth format
+    torch.save(model.state_dict(), model_output)
+    print(f"BlenderNet state dictionary saved to: {model_output}")
 
     return {
         "train_loss": final_train_loss,

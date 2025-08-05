@@ -118,6 +118,10 @@ def evaluate_hyperparameters_on_pid_pairs(hyperparams, training_data_path, pid_p
     onnx_path = train_model_with_hyperparameters(hyperparams, training_data_path, pretrained_path)
     costs = []
     
+    # Load normalization stats from training data
+    with open(training_data_path, 'r') as f:
+        norm_stats = json.load(f).get('feature_stats')
+
     try:
         test_files = random.sample(data_files, min(max_files, len(data_files)))
         print(f"      Testing on {len(test_files)} files with {len(pid_pairs[:3])} PID pairs...")
@@ -125,7 +129,7 @@ def evaluate_hyperparameters_on_pid_pairs(hyperparams, training_data_path, pid_p
         for pid_idx, (low_gains, high_gains) in enumerate(pid_pairs[:3]):
             pid_costs = []
             for file_idx, test_file in enumerate(test_files):
-                controller_name = create_temp_neural_controller(low_gains, high_gains, onnx_path, hyperparams['id'])
+                controller_name = create_temp_neural_controller(low_gains, high_gains, onnx_path, hyperparams['id'], norm_stats)
                 try:
                     cost_result, _, _ = run_rollout(test_file, controller_name, model)
                     total_cost = cost_result["total_cost"]
@@ -162,10 +166,10 @@ def tournament_selection_and_evolution(population, elite_pct=0.3):
     
     return next_gen
 
-def create_temp_neural_controller(low_gains, high_gains, onnx_path, arch_id):
+def create_temp_neural_controller(low_gains, high_gains, onnx_path, arch_id, norm_stats=None):
     """Create temporary neural controller file."""
     from optimization import generate_neural_blended_controller
-    code = generate_neural_blended_controller(low_gains, high_gains, onnx_path)
+    code = generate_neural_blended_controller(low_gains, high_gains, onnx_path, norm_stats=norm_stats)
     name = f"temp_neural_{hashlib.md5((str(arch_id) + onnx_path).encode()).hexdigest()[:8]}"
     path = Path("controllers") / f"{name}.py"
     Path("controllers").mkdir(exist_ok=True)

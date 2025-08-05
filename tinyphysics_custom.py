@@ -53,19 +53,19 @@ class LataccelTokenizer:
     self.vocab_size = VOCAB_SIZE
     self.bins = np.linspace(LATACCEL_RANGE[0], LATACCEL_RANGE[1], self.vocab_size)
 
-  def encode(self, value: Union[float, np.ndarray, List[float]]) -> Union[int, np.ndarray]:
+  def encode(self, value):
     value = self.clip(value)
     return np.digitize(value, self.bins, right=True)
 
-  def decode(self, token: Union[int, np.ndarray]) -> Union[float, np.ndarray]:
-    return self.bins[token]
+  def decode(self, token):
+    return float(self.bins[token])
 
-  def clip(self, value: Union[float, np.ndarray, List[float]]) -> Union[float, np.ndarray]:
+  def clip(self, value):
     return np.clip(value, LATACCEL_RANGE[0], LATACCEL_RANGE[1])
 
 
 class TinyPhysicsModel:
-  def __init__(self, model_path: str, debug: bool) -> None:
+  def __init__(self, model_path, debug):
     self.tokenizer = LataccelTokenizer()
     options = ort.SessionOptions()
     options.intra_op_num_threads = 1
@@ -98,7 +98,7 @@ class TinyPhysicsModel:
     e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
     return e_x / np.sum(e_x, axis=axis, keepdims=True)
 
-  def predict(self, input_data: dict, temperature=1.) -> int:
+  def predict(self, input_data, temperature=1.):
     res = self.ort_session.run(None, input_data)[0]
     probs = self.softmax(res / temperature, axis=-1)
     # we only care about the last timestep (batch size is just 1)
@@ -107,19 +107,19 @@ class TinyPhysicsModel:
     sample = np.random.choice(probs.shape[2], p=probs[0, -1])
     return sample
 
-  def get_current_lataccel(self, sim_states: List[State], actions: List[float], past_preds: List[float]) -> float:
+  def get_current_lataccel(self, sim_states, actions, past_preds):
     tokenized_actions = self.tokenizer.encode(past_preds)
     raw_states = [list(x) for x in sim_states]
     states = np.column_stack([actions, raw_states])
     input_data = {
       'states': np.expand_dims(states, axis=0).astype(np.float32),
-      'tokens': np.expand_dims(tokenized_actions, axis=0).astype(np.int64)
+      'tokens': np.expand_dims(np.array(tokenized_actions), axis=0).astype(np.int64)
     }
     return self.tokenizer.decode(self.predict(input_data, temperature=0.8))
 
 
 class TinyPhysicsSimulator:
-  def __init__(self, model: TinyPhysicsModel, data_path: str, controller: BaseController, debug: bool = False) -> None:
+  def __init__(self, model, data_path, controller, debug = False):
     self.data_path = data_path
     self.sim_model = model
     self.data = self.get_data(data_path)
@@ -127,7 +127,7 @@ class TinyPhysicsSimulator:
     self.debug = debug
     self.reset()
 
-  def reset(self) -> None:
+  def reset(self):
     self.step_idx = CONTEXT_LENGTH
     state_target_futureplans = [self.get_state_target_futureplan(i) for i in range(self.step_idx)]
     self.state_history = [x[0] for x in state_target_futureplans]
@@ -139,18 +139,18 @@ class TinyPhysicsSimulator:
     seed = int(md5(self.data_path.encode()).hexdigest(), 16) % 10**4
     np.random.seed(seed)
 
-  def get_data(self, data_path: str) -> pd.DataFrame:
+  def get_data(self, data_path):
     df = pd.read_csv(data_path)
     processed_df = pd.DataFrame({
       'roll_lataccel': np.sin(df['roll'].values) * ACC_G,
       'v_ego': df['vEgo'].values,
       'a_ego': df['aEgo'].values,
       'target_lataccel': df['targetLateralAcceleration'].values,
-      'steer_command': -df['steerCommand'].values  # steer commands are logged with left-positive convention but this simulator uses right-positive
+      'steer_command': -df['steerCommand'].values
     })
     return processed_df
 
-  def sim_step(self, step_idx: int) -> None:
+  def sim_step(self, step_idx):
     pred = self.sim_model.get_current_lataccel(
       sim_states=self.state_history[-CONTEXT_LENGTH:],
       actions=self.action_history[-CONTEXT_LENGTH:],
@@ -164,14 +164,14 @@ class TinyPhysicsSimulator:
 
     self.current_lataccel_history.append(self.current_lataccel)
 
-  def control_step(self, step_idx: int) -> None:
+  def control_step(self, step_idx):
     action = self.controller.update(self.target_lataccel_history[step_idx], self.current_lataccel, self.state_history[step_idx], future_plan=self.futureplan)
     if step_idx < CONTROL_START_IDX:
       action = self.data['steer_command'].values[step_idx]
     action = np.clip(action, STEER_RANGE[0], STEER_RANGE[1])
     self.action_history.append(action)
 
-  def get_state_target_futureplan(self, step_idx: int) -> Tuple[State, float, FuturePlan]:
+  def get_state_target_futureplan(self, step_idx):
     state = self.data.iloc[step_idx]
     return (
       State(roll_lataccel=state['roll_lataccel'], v_ego=state['v_ego'], a_ego=state['a_ego']),
@@ -184,7 +184,7 @@ class TinyPhysicsSimulator:
       )
     )
 
-  def step(self) -> None:
+  def step(self):
     state, target, futureplan = self.get_state_target_futureplan(self.step_idx)
     self.state_history.append(state)
     self.target_lataccel_history.append(target)
@@ -193,7 +193,7 @@ class TinyPhysicsSimulator:
     self.sim_step(self.step_idx)
     self.step_idx += 1
 
-  def plot_data(self, ax, lines, axis_labels, title) -> None:
+  def plot_data(self, ax, lines, axis_labels, title):
     ax.clear()
     for line, label in lines:
       ax.plot(line, label=label)
@@ -203,17 +203,16 @@ class TinyPhysicsSimulator:
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
 
-  def compute_cost(self) -> Dict[str, float]:
-    # Compute cost over full segment after control start
-    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:]
-    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:]
+  def compute_cost(self):
+    target = np.array(self.target_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
+    pred = np.array(self.current_lataccel_history)[CONTROL_START_IDX:COST_END_IDX]
 
-    lat_accel_cost = np.mean((target - pred)**2) * 100
-    jerk_cost = np.mean((np.diff(pred) / DEL_T)**2) * 100
+    lat_accel_cost = float(np.mean((target - pred)**2) * 100)
+    jerk_cost = float(np.mean((np.diff(pred) / DEL_T)**2) * 100)
     total_cost = (lat_accel_cost * LAT_ACCEL_COST_MULTIPLIER) + jerk_cost
     return {'lataccel_cost': lat_accel_cost, 'jerk_cost': jerk_cost, 'total_cost': total_cost}
 
-  def rollout(self) -> Dict[str, float]:
+  def rollout(self):
     if self.debug:
       plt.ion()
       fig, ax = plt.subplots(4, figsize=(12, 14), constrained_layout=True)
@@ -239,15 +238,9 @@ def get_available_controllers():
 
 
 def run_rollout(data_path, controller_type, model_path_or_instance, debug=False):
-  """Enhanced run_rollout with dual interface support
-  
-  Supports both:
-  - model_path_or_instance as string: Original competition interface
-  - model_path_or_instance as TinyPhysicsModel: GPU-optimized interface for batch processing
-  """
-  if hasattr(model_path_or_instance, 'ort_session'):  # It's a model instance
+  if hasattr(model_path_or_instance, 'ort_session'):
     tinyphysicsmodel = model_path_or_instance
-  else:  # It's a path string (backward compatible)
+  else:
     tinyphysicsmodel = TinyPhysicsModel(model_path_or_instance, debug=debug)
   
   controller = importlib.import_module(f'controllers.{controller_type}').Controller()
@@ -290,8 +283,8 @@ if __name__ == "__main__":
     costs = [result[0] for result in results]
     costs_df = pd.DataFrame(costs)
     print(f"\nAverage lataccel_cost: {np.mean(costs_df['lataccel_cost']):>6.4}, average jerk_cost: {np.mean(costs_df['jerk_cost']):>6.4}, average total_cost: {np.mean(costs_df['total_cost']):>6.4}")
-    for cost in costs_df.columns:
-      plt.hist(costs_df[cost], bins=np.arange(0, 1000, 10), label=cost, alpha=0.5)
+    for cost_name in costs_df.columns:
+      plt.hist(costs_df[cost_name], bins=np.arange(0, 1000, 10), label=str(cost_name), alpha=0.5)
     plt.xlabel('costs')
     plt.ylabel('Frequency')
     plt.title('costs Distribution')

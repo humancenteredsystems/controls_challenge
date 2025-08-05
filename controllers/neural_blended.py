@@ -65,10 +65,7 @@ class Controller(BaseController):
             print(f"Loaded best PID params from archive (cost: {best_combo['stats']['avg_total_cost']:.2f})")
             
         else:
-            # Fallback parameters
-            pid1_params = [0.25, 0.12, -0.05]  # Low-speed optimized
-            pid2_params = [0.15, 0.08, -0.15]  # High-speed optimized
-            print("Using fallback PID parameters")
+            raise FileNotFoundError("Could not find tournament_archive.json. Run Stage 2/3 first.")
         
         return pid1_params, pid2_params
     

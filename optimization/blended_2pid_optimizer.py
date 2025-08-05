@@ -40,80 +40,45 @@ class Blended2PIDOptimizer:
         return self.model_instance
         
     def define_comprehensive_search_space(self, num_combinations: int = 250) -> List[Tuple[List[float], List[float]]]:
-        """Define a comprehensive parameter search space for 2-PID controllers"""
+        """Define a comprehensive parameter search space using simple uniform sampling."""
         
-        print(f"Generating comprehensive search space for {num_combinations} combinations...")
+        print(f"Generating comprehensive search space for {num_combinations} combinations using pure uniform random sampling...")
         
-        # More granular parameter ranges for P, I, D (6 parameters total)
-        low_p_values = np.linspace(0.25, 0.6, 8)    # 8 values from 0.25 to 0.6
-        low_i_values = np.linspace(0.01, 0.12, 6)   # 6 values from 0.01 to 0.12
-        low_d_values = np.linspace(-0.25, -0.05, 6) # 6 values from -0.25 to -0.05
-        
-        high_p_values = np.linspace(0.15, 0.4, 8)   # 8 values from 0.15 to 0.4
-        high_i_values = np.linspace(0.005, 0.08, 6) # 6 values from 0.005 to 0.08
-        high_d_values = np.linspace(-0.15, -0.03, 6)# 6 values from -0.15 to -0.03
-        
-        # Generate systematic combinations
         combinations = []
         
-        # Strategy 1: Full factorial of reduced spaces (core search)
-        low_core = [(0.3, 0.03, -0.1), (0.35, 0.05, -0.15), (0.4, 0.04, -0.12)]
-        high_core = [(0.2, 0.01, -0.05), (0.25, 0.02, -0.08), (0.3, 0.015, -0.06)]
-        
-        for low in low_core:
-            for high in high_core:
-                combinations.append((list(low), list(high)))
-        
-        # Strategy 2: Random sampling from refined ranges around best known values
+        # Pure uniform random sampling (no core combinations)
         np.random.seed(42)  # For reproducible results
         
-        best_low = [0.3, 0.03, -0.1]
-        best_high = [0.2, 0.01, -0.05]
+        bounds = {
+            'low_p': (0.25, 0.6),
+            'low_i': (0.01, 0.12),
+            'low_d': (-0.25, -0.05),
+            'high_p': (0.15, 0.4),
+            'high_i': (0.005, 0.08),
+            'high_d': (-0.15, -0.03)
+        }
         
-        for _ in range(num_combinations - len(combinations)):
-            if len(combinations) >= num_combinations:
-                break
-            low_p = np.clip(np.random.normal(best_low[0], 0.08), 0.2, 0.6)
-            low_i = np.clip(np.random.normal(best_low[1], 0.02), 0.01, 0.12)
-            low_d = np.clip(np.random.normal(best_low[2], 0.04), -0.25, -0.05)
-            high_p = np.clip(np.random.normal(best_high[0], 0.06), 0.15, 0.4)
-            high_i = np.clip(np.random.normal(best_high[1], 0.015), 0.005, 0.08)
-            high_d = np.clip(np.random.normal(best_high[2], 0.03), -0.15, -0.03)
-            combinations.append(([round(low_p,3), round(low_i,3), round(low_d,3)],
-                                 [round(high_p,3), round(high_i,3), round(high_d,3)]))
-        
-        # Strategy 3: Extreme boundary combinations
-        extreme = [
-            ([0.6, 0.01, -0.05], [0.15, 0.005, -0.03]),
-            ([0.25, 0.12, -0.25], [0.4, 0.08, -0.15]),
-            ([0.45, 0.06, -0.18], [0.25, 0.03, -0.09]),
-        ]
-        for combo in extreme:
-            if len(combinations) < num_combinations:
-                combinations.append(combo)
+        for _ in range(num_combinations):
+            low_gains = [
+                round(np.random.uniform(*bounds['low_p']), 3),
+                round(np.random.uniform(*bounds['low_i']), 3),
+                round(np.random.uniform(*bounds['low_d']), 3)
+            ]
+            high_gains = [
+                round(np.random.uniform(*bounds['high_p']), 3),
+                round(np.random.uniform(*bounds['high_i']), 3),
+                round(np.random.uniform(*bounds['high_d']), 3)
+            ]
+            combinations.append((low_gains, high_gains))
         
         print(f"Generated {len(combinations)} parameter combinations")
-        return combinations[:num_combinations]
+        return combinations
     
     def test_controller_combination(self, data_files: List[str], low_gains: List[float], 
                                    high_gains: List[float], max_files: int = 25) -> Dict[str, float]:
         """Test a single blended 2-PID controller combination"""
-        controller_content = f'''from controllers import BaseController
-from controllers.shared_pid import SpecializedPID
-from controllers.blending import get_smooth_blend_weight
-
-class Controller(BaseController):
-    def __init__(self):
-        self.low_speed_pid = SpecializedPID({low_gains[0]}, {low_gains[1]}, {low_gains[2]})
-        self.high_speed_pid = SpecializedPID({high_gains[0]}, {high_gains[1]}, {high_gains[2]})
-    def update(self, target_lataccel, current_lataccel, state, future_plan):
-        error = target_lataccel - current_lataccel
-        v_ego = state.v_ego
-        low = self.low_speed_pid.update(error)
-        high = self.high_speed_pid.update(error)
-        blend_weight = get_smooth_blend_weight(v_ego)
-        return (1.0 - blend_weight) * low + blend_weight * high
-'''
+        from optimization import generate_blended_controller
+        controller_content = generate_blended_controller(low_gains, high_gains)
         base_dir = Path(__file__).parent.parent
         import uuid
         uid = str(uuid.uuid4())[:8]

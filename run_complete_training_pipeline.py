@@ -240,7 +240,7 @@ def main():
     parser.add_argument("--stage4-batch-size", dest="stage4_batch_size", type=int, default=32,
                         help="Batch size for neural blender pre-training")
     parser.add_argument("--stage4-model-output", dest="stage4_model_output", type=str,
-                        default="models/blender_trained.onnx", help="Output path for trained neural blender ONNX model")
+                        default="models/neural_blender_pretrained.pth", help="Output path for pre-trained PyTorch model state dictionary")
     parser.add_argument("--stage4-lr", type=float, default=0.001, help="Learning rate for BlenderNet training")
     parser.add_argument("--stage4-data-seed", dest="stage4_data_seed", type=int, default=None,
                         help="Seed for Stage 4 data generation and training")
