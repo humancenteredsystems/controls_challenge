@@ -165,16 +165,21 @@ def initialize_population(
     init_seed: Optional[int] = None
 ) -> List[ParameterSet]:
     population: List[ParameterSet] = []
-    if seed_from_archive and Path(seed_from_archive).exists():
+    if seed_from_archive:
+        archive_path = Path(seed_from_archive)
+        if not archive_path.exists():
+            raise FileNotFoundError(f"Archive file not found: {archive_path}")
         try:
-            champions = load_champions_from_file(seed_from_archive, n)
+            champions = load_champions_from_file(str(archive_path), n)
             for i, champ in enumerate(champions):
                 low, high = extract_gains_from_champion(champ)
                 ps = ParameterSet(low, high)
                 ps.id = f"champion_{i}"
                 population.append(ps)
-        except:
-            pass
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to initialize population from archive '{archive_path}'"
+            ) from e
     remaining = n - len(population)
     rng = np.random.default_rng(init_seed)
     for _ in range(remaining):
