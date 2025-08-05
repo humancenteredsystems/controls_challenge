@@ -2,8 +2,6 @@ import argparse
 import importlib
 import numpy as np
 import onnxruntime as ort
-import os
-import sys
 
 # GPU acceleration enabled with CUDA 11.8 + ONNX Runtime 1.17.1 + cuDNN 8
 CUDA_AVAILABLE = True
@@ -12,18 +10,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import signal
-import urllib.request
-import zipfile
-
-from io import BytesIO
 from collections import namedtuple
 from functools import partial
 from hashlib import md5
 from pathlib import Path
 from typing import List, Union, Tuple, Dict
 from tqdm.contrib.concurrent import process_map
-
-from controllers import BaseController
 
 sns.set_theme()
 signal.signal(signal.SIGINT, signal.SIG_DFL)  # Enable Ctrl-C on plot windows
@@ -45,7 +37,6 @@ FUTURE_PLAN_STEPS = FPS * 5  # 5 secs
 State = namedtuple('State', ['roll_lataccel', 'v_ego', 'a_ego'])
 FuturePlan = namedtuple('FuturePlan', ['lataccel', 'roll_lataccel', 'v_ego', 'a_ego'])
 
-DATASET_URL = "https://huggingface.co/datasets/commaai/commaSteeringControl/resolve/main/data/SYNTHETIC_V0.zip"
 DATASET_PATH = Path(__file__).resolve().parent / "data"
 
 class LataccelTokenizer:
@@ -72,27 +63,26 @@ class TinyPhysicsModel:
     options.inter_op_num_threads = 1
     options.log_severity_level = 3 if not debug else 0
     
-    # GPU acceleration enabled - use CUDA provider with CPU fallback
+    # GPU acceleration enabled - try CUDA provider
     session_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
-    
+
     if debug:
-        print("Using GPU acceleration with CUDA provider (CPU fallback available)")
-    
-    # Load model and create session with GPU acceleration (CPU fallback)
+        print("Using GPU acceleration with CUDA provider")
+
+    # Load model and create session with GPU acceleration
     with open(model_path, "rb") as f:
       model_bytes = f.read()
     
     try:
-      # Create session with GPU provider first, CPU fallback
+      # Create session with GPU provider first
       self.ort_session = ort.InferenceSession(model_bytes, options, session_providers)
+      active_providers = self.ort_session.get_providers()
+      if 'CUDAExecutionProvider' not in active_providers:
+          raise RuntimeError('CUDAExecutionProvider not active. GPU execution is required.')
       if debug:
-          active_providers = self.ort_session.get_providers()
-          if 'CUDAExecutionProvider' in active_providers:
-              print("SUCCESS: ONNX Runtime session created with GPU acceleration active")
-          else:
-              print("SUCCESS: ONNX Runtime session created with CPU fallback")
+          print("SUCCESS: ONNX Runtime session created with GPU acceleration active")
     except Exception as e:
-      raise RuntimeError(f"Failed to create ONNX Runtime session with GPU/CPU providers: {e}")
+      raise RuntimeError(f"Failed to create ONNX Runtime session with GPU provider: {e}")
 
   def softmax(self, x, axis=-1):
     e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
@@ -247,18 +237,6 @@ def run_rollout(data_path, controller_type, model_path_or_instance, debug=False)
   sim = TinyPhysicsSimulator(tinyphysicsmodel, str(data_path), controller=controller, debug=debug)
   return sim.rollout(), sim.target_lataccel_history, sim.current_lataccel_history
 
-
-def download_dataset():
-  print("Downloading dataset (0.6G)...")
-  DATASET_PATH.mkdir(parents=True, exist_ok=True)
-  with urllib.request.urlopen(DATASET_URL) as resp:
-    with zipfile.ZipFile(BytesIO(resp.read())) as z:
-      for member in z.namelist():
-        if not member.endswith('/'):
-          with z.open(member) as src, open(DATASET_PATH / os.path.basename(member), 'wb') as dest:
-            dest.write(src.read())
-
-
 if __name__ == "__main__":
   available_controllers = get_available_controllers()
   parser = argparse.ArgumentParser()
@@ -270,7 +248,7 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if not DATASET_PATH.exists():
-    download_dataset()
+    raise FileNotFoundError(f"Dataset directory not found at {DATASET_PATH}. Please download the data manually.")
 
   data_path = Path(args.data_path)
   if data_path.is_file():
