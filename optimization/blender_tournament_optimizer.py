@@ -250,14 +250,14 @@ def get_tournament_baseline(archive_path):
     try:
         with open(archive_path, 'r') as f:
             archive = json.load(f)
-        costs = [e['stats']['avg_total_cost'] for e in archive.get('archive', []) 
-                if 'stats' in e and 'avg_total_cost' in e['stats']]
-        baseline = min(costs) if costs else 200.0
-        print(f"📊 Tournament baseline to beat: {baseline:.2f}")
-        return baseline
-    except:
-        print("⚠️ Could not load baseline, using 200.0")
-        return 200.0
+    except Exception as e:
+        raise RuntimeError(f"Failed to load tournament archive {archive_path}") from e
+
+    costs = [e['stats']['avg_total_cost'] for e in archive.get('archive', [])
+             if 'stats' in e and 'avg_total_cost' in e['stats']]
+    baseline = min(costs) if costs else 200.0
+    print(f"📊 Tournament baseline to beat: {baseline:.2f}")
+    return baseline
 
 def create_champion_controller(best_hyperparams, best_pid_pair, archive_path):
     """Create final champion controller."""
@@ -320,10 +320,14 @@ def run_blender_tournament(archive_path, data_files, model_path, rounds=10, pop_
         "approach": "Fixed architecture, evolve hyperparameters"
     })
 
-    # Load fixed PID pairs from Stage 3
-    pid_pairs = load_top_pid_pairs(archive_path, n=5)
-    best_pid_pair = pid_pairs[0]  # Best pair for champion
-    baseline = get_tournament_baseline(archive_path)
+    # Load fixed PID pairs from Stage 3 and determine baseline
+    try:
+        pid_pairs = load_top_pid_pairs(archive_path, n=5)
+        best_pid_pair = pid_pairs[0]  # Best pair for champion
+        baseline = get_tournament_baseline(archive_path)
+    except Exception as e:
+        print(f"❌ Failed to load tournament archive: {e}")
+        raise RuntimeError("Tournament archive missing or unreadable") from e
 
     model = TinyPhysicsModel(model_path, debug=False)
     print("Blender Tournament: GPU Enabled")
@@ -431,10 +435,13 @@ def main():
     
     random.shuffle(data_files)
     print(f"Found {len(data_files)} data files")
-    
-    run_blender_tournament(args.archive, data_files, args.model_path, 
-                          args.rounds, args.pop_size, args.max_files)
-    return 0
+    try:
+        run_blender_tournament(args.archive, data_files, args.model_path,
+                              args.rounds, args.pop_size, args.max_files)
+        return 0
+    except Exception as e:
+        print(f"❌ {e}")
+        return 1
 
 if __name__ == "__main__":
     sys.exit(main())

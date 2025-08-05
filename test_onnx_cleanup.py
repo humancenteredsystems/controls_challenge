@@ -1,3 +1,4 @@
+import json
 import pytest
 from optimization import blender_tournament_optimizer as bto
 
@@ -10,8 +11,10 @@ def _setup_artifacts(tmp_path, monkeypatch, rollout_func):
     """Helper to create temp model and controller with cleanup patches."""
     onnx_file = tmp_path / "model.onnx"
     temp_controller = tmp_path / "temp_controller.py"
+    training_file = tmp_path / "train.json"
+    training_file.write_text(json.dumps({"feature_stats": None}))
 
-    def mock_train(architecture, training_data, epochs=100, pretrained_path=None):
+    def mock_train(hparams, training_data, pretrained_path=None):
         onnx_file.write_text("dummy")
         return str(onnx_file)
 
@@ -19,24 +22,25 @@ def _setup_artifacts(tmp_path, monkeypatch, rollout_func):
     monkeypatch.setattr(bto.random, "sample", lambda data, k: data[:k])
     monkeypatch.setattr(bto, "run_rollout", rollout_func)
 
-    return onnx_file, temp_controller
+    def mock_make_temp(pid1, pid2, path, arch_id, norm_stats=None):
+        temp_controller.write_text("dummy controller")
+        return temp_controller.stem
+
+    def mock_cleanup(name):
+        if temp_controller.exists():
+            temp_controller.unlink()
 
     monkeypatch.setattr(bto, "create_temp_neural_controller", mock_make_temp)
-    monkeypatch.setattr(bto, "run_rollout", lambda df, cm, m: ({"total_cost": 1.0}, None, None))
-    monkeypatch.setattr(bto, "cleanup_temp_controller", lambda name: None)
+    monkeypatch.setattr(bto, "cleanup_temp_controller", mock_cleanup)
 
-    pid_pairs = [([0, 0, 0], [0, 0, 0])]
-    cost = bto.evaluate_hyperparameters_on_pid_pairs({"id": 1}, "train.json", pid_pairs, ["data"], DummyModel(), 1)
-    assert cost == pytest.approx(1.0)
-    assert not onnx_file.exists()
-    assert not temp_controller.exists()
+    return onnx_file, temp_controller, training_file
 
 
 def test_temp_files_removed_on_rollout_error(tmp_path, monkeypatch):
     def failing_rollout(df, cn, m):
         raise RuntimeError("fail")
 
-    onnx_file, temp_controller = _setup_artifacts(
+    onnx_file, temp_controller, training = _setup_artifacts(
         tmp_path, monkeypatch, failing_rollout
     )
 
@@ -46,7 +50,7 @@ def test_temp_files_removed_on_rollout_error(tmp_path, monkeypatch):
     arch = {"id": "1", "hidden_sizes": [], "dropout_rate": 0.1}
     cost = bto.evaluate_hyperparameters_on_pid_pairs(
         arch,
-        str(training_file),
+        str(training),
         [([0, 0, 0], [0, 0, 0])],
         ["file.csv"],
         DummyModel(),
@@ -59,14 +63,9 @@ def test_temp_files_removed_on_rollout_error(tmp_path, monkeypatch):
 
 
 def test_onnx_removed_if_controller_creation_fails(tmp_path, monkeypatch):
-    onnx_file = tmp_path / "model.onnx"
-
-    def mock_train(architecture, training_data, epochs=100, pretrained_path=None):
-        onnx_file.write_text("dummy")
-        return str(onnx_file)
-
-    monkeypatch.setattr(bto, "train_model_with_hyperparameters", mock_train)
-    monkeypatch.setattr(bto.random, "sample", lambda data, k: data[:k])
+    onnx_file, _, training = _setup_artifacts(
+        tmp_path, monkeypatch, lambda df, cn, m: ({"total_cost": 1.0}, None, None)
+    )
 
     def mock_make_temp(pid1, pid2, path, arch_id, norm_stats=None):
         raise RuntimeError("fail")
@@ -77,6 +76,6 @@ def test_onnx_removed_if_controller_creation_fails(tmp_path, monkeypatch):
     training_file = tmp_path / "train.json"
     training_file.write_text("{}")
     with pytest.raises(RuntimeError):
-        bto.evaluate_hyperparameters_on_pid_pairs({"id": 1}, str(training_file), pid_pairs, ["data"], DummyModel(), 1)
+        bto.evaluate_hyperparameters_on_pid_pairs({"id": 1, "hidden_sizes": [], "dropout_rate": 0.1}, str(training), pid_pairs, ["data"], DummyModel(), 1)
 
     assert not onnx_file.exists()
