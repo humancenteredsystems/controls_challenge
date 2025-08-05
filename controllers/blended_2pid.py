@@ -11,19 +11,20 @@ class Controller(BaseController):
     def __init__(self):
         # Load parameters from json file
         params_file = Path(__file__).parent.parent / "blended_2pid_params.json"
-        if params_file.exists():
+        try:
             with open(params_file, 'r') as f:
                 params = json.load(f)
-            
+
             low_gains = params['low_gains']
             high_gains = params['high_gains']
-            
-            print(f"Loaded blended 2-PID parameters (cost: {params.get('best_cost', 'N/A'):.2f})")
-        else:
-            # Fallback to default parameters
-            low_gains = [0.3, 0.03, -0.1]
-            high_gains = [0.2, 0.01, -0.05]
-            print("Using fallback blended 2-PID parameters")
+
+            cost = params.get('best_cost', float('nan'))
+            print(f"Loaded blended 2-PID parameters (cost: {cost:.2f})")
+        except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError) as e:
+            raise FileNotFoundError(
+                f"Could not load blended_2pid parameters from {params_file}. "
+                "Ensure Stage 1 ran and produced a valid params file."
+            ) from e
         
         # Initialize specialized PID controllers
         self.low_speed_pid = SpecializedPID(low_gains[0], low_gains[1], low_gains[2], "LowSpeed")
