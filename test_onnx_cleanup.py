@@ -44,6 +44,9 @@ def test_temp_files_removed_on_rollout_error(tmp_path, monkeypatch):
         tmp_path, monkeypatch, failing_rollout
     )
 
+    training_file = tmp_path / "training.json"
+    training_file.write_text("{}")
+
     arch = {"id": "1", "hidden_sizes": [], "dropout_rate": 0.1}
     cost = bto.evaluate_hyperparameters_on_pid_pairs(
         arch,
@@ -70,6 +73,8 @@ def test_onnx_removed_if_controller_creation_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(bto, "create_temp_neural_controller", mock_make_temp)
 
     pid_pairs = [([0, 0, 0], [0, 0, 0])]
+    training_file = tmp_path / "train.json"
+    training_file.write_text("{}")
     with pytest.raises(RuntimeError):
         bto.evaluate_hyperparameters_on_pid_pairs({"id": 1, "hidden_sizes": [], "dropout_rate": 0.1}, str(training), pid_pairs, ["data"], DummyModel(), 1)
 

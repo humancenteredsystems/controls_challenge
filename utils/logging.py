@@ -1,11 +1,6 @@
 """Shared logging utilities for consistent terminal reporting across pipeline stages."""
 
-try:
-    from tqdm import tqdm as _tqdm
-except ImportError:
-    def _tqdm(iterable, **kwargs):
-        # Fallback: no progress bar
-        return iterable
+from tqdm import tqdm as _tqdm
 
 EMOJI_TROPHY = "🏆"
 EMOJI_LAB = "🔬"
@@ -14,7 +9,7 @@ EMOJI_WARN = "⚠️"
 EMOJI_PARTY = "🎉"
 
 def tqdm(iterable, **kwargs):
-    """Wrapper around tqdm with fallback."""
+    """Wrapper around tqdm."""
     return _tqdm(iterable, **kwargs)
 
 def print_banner(stage_num, stage_name):

@@ -18,6 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tinyphysics_custom import run_rollout
 
 BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
 
 class Blended2PIDOptimizer:
     """Enhanced grid search optimization for blended 2-PID controllers"""
@@ -126,11 +127,20 @@ class Blended2PIDOptimizer:
                     }
                     results.append(entry)
                     if entry["avg_total_cost"]<self.best_cost:
-                        self.best_cost=entry["avg_total_cost"]
-                        self.best_params=(low,high)
+                        self.best_cost = entry["avg_total_cost"]
+                        self.best_params = (low, high)
                         print(f"🎉 New best: {self.best_cost:.2f}")
-                        with open(BASE_DIR / "blended_2pid_best_params_temp.json", "w") as pf:
-                            json.dump({"low":low,"high":high,"cost":self.best_cost,"id":i},pf,indent=2)
+                        params_path = ROOT_DIR / "blended_2pid_params.json"
+                        with open(params_path, "w") as pf:
+                            json.dump(
+                                {
+                                    "low_gains": low,
+                                    "high_gains": high,
+                                    "best_cost": self.best_cost,
+                                },
+                                pf,
+                                indent=2,
+                            )
                 if (i+1)%25==0:
                     with open(progress_file,"w") as pf:
                         json.dump({"completed":i+1,"best":self.best_cost,"count":len(results)},pf,indent=2)
@@ -196,6 +206,18 @@ def main():
     )
     optimizer.print_top_results(results, top_n=15)
     optimizer.save_comprehensive_results(results)
+
+    if optimizer.best_params is None:
+        raise RuntimeError("Optimization completed without finding valid parameters")
+
+    params_path = base_dir / "blended_2pid_params.json"
+    with open(params_path, "w") as f:
+        json.dump({
+            "low_gains": optimizer.best_params[0],
+            "high_gains": optimizer.best_params[1],
+            "best_cost": optimizer.best_cost,
+        }, f, indent=2)
+    print(f"Saved best parameters to {params_path}")
 
 if __name__ == "__main__":
     main()

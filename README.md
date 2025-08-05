@@ -21,7 +21,7 @@ Machine learning models can drive cars, paint beautiful pictures and write passa
 We'll be using a synthetic dataset based on the [comma-steering-control](https://github.com/commaai/comma-steering-control) dataset for this challenge. These are actual car and road states from [openpilot](https://github.com/commaai/openpilot) users.
 
 ```
-# install required packages
+# install required packages (tqdm provides progress bars)
 # recommended python==3.11
 pip install -r requirements.txt
 
@@ -32,7 +32,9 @@ python tinyphysics.py --model_path ./models/tinyphysics.onnx --data_path ./data/
 # python tinyphysics.py --model_path ./models/tinyphysics.onnx --data_path ./data/00000.csv --controller neural_blended --blender_model_path ./path/to/blender.onnx
 ```
 
-There are some other scripts to help you get aggregate metrics: 
+The logging utilities rely on `tqdm` for progress bars, so ensure it is installed.
+
+There are some other scripts to help you get aggregate metrics:
 ```
 # batch Metrics of a controller on lots of routes
 python tinyphysics.py --model_path ./models/tinyphysics.onnx --data_path ./data --num_segs 100 --controller pid

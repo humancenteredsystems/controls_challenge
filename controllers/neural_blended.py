@@ -56,8 +56,9 @@ class Controller(BaseController):
             if valid_entries:
                 best_combo = min(valid_entries, key=lambda x: x['stats']['avg_total_cost'])
             else:
-                # Fallback to first archive entry if no valid stats
-                best_combo = archive['archive'][0]
+                raise RuntimeError(
+                    f"No valid 'avg_total_cost' values found in tournament archive: {archive_path}"
+                )
             
             pid1_params = best_combo['low_gains']
             pid2_params = best_combo['high_gains']
