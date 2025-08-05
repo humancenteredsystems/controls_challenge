@@ -4,8 +4,8 @@ from controllers.blending import get_smooth_blend_weight
 
 class Controller(BaseController):
     def __init__(self):
-        self.low_speed_pid = SpecializedPID(0.462, 0.011, -0.23)
-        self.high_speed_pid = SpecializedPID(0.316, 0.005, -0.131)
+        self.low_speed_pid = SpecializedPID(0.43, 0.096, -0.171)
+        self.high_speed_pid = SpecializedPID(0.306, 0.07, -0.036)
 
     def update(self, target_lataccel, current_lataccel, state, future_plan):
         error = target_lataccel - current_lataccel

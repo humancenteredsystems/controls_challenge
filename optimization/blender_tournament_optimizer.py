@@ -91,7 +91,7 @@ def train_model_with_hyperparameters(hyperparams, training_data_path, pretrained
     import torch
 
     model_id = hyperparams['id']
-    model_output_path = Path("models") / f"blender_{model_id}.onnx"
+    model_output_path = Path("models") / f"blender_{model_id}.pth"
     model_output_path.parent.mkdir(exist_ok=True)
     print(f"    Training model {model_id} with params: {hyperparams}... ", end="", flush=True)
 
