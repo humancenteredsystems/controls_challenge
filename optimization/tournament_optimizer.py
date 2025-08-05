@@ -136,8 +136,9 @@ def evaluate(ps: ParameterSet, data_files: List[str], model: TinyPhysicsModel, m
         for file in selected:
             cost, _, _ = run_rollout(file, module_name, model, debug=False)
             total_costs.append(cost["total_cost"])
-    except Exception as e:
-        logging.error("Evaluation failed for %s: %s", ps.id, e)
+    except Exception:
+        logging.exception("Evaluation failed for %s", ps.id)
+        raise
     finally:
         cleanup_controllers(prefix=f"temp_{ps.id.replace('-', '')}")
         if full_module and full_module in sys.modules:

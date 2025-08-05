@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple, Any
 from tqdm import tqdm
 import time
 import pandas as pd
+import logging
 
 import sys
 import os
@@ -87,15 +88,18 @@ class Blended2PIDOptimizer:
         with open(path, "w") as f:
             f.write(controller_content)
         costs, count = [], 0
-        for fpath in data_files[:max_files]:
-            try:
+        try:
+            for fpath in data_files[:max_files]:
                 model = self._get_model_instance()
                 cost, _, _ = run_rollout(fpath, name, model, debug=False)
                 costs.append(cost["total_cost"])
                 count += 1
-            except Exception as e:
-                print(f"Error during rollout for {name}: {e}")
-        if path.exists(): path.unlink()
+        except Exception:
+            logging.exception("Error during rollout for %s", name)
+            raise
+        finally:
+            if path.exists():
+                path.unlink()
         if count==0:
             return {"avg_total_cost": float("inf"), "num_files":0}
         arr = np.array(costs)
@@ -134,8 +138,9 @@ class Blended2PIDOptimizer:
                 if (i+1)%25==0:
                     with open(progress_file,"w") as pf:
                         json.dump({"completed":i+1,"best":self.best_cost,"count":len(results)},pf,indent=2)
-            except Exception as e:
-                print(f"Error combo {i}: {e}")
+            except Exception:
+                logging.exception("Error combo %d", i)
+                raise
         results.sort(key=lambda x: x["avg_total_cost"])
         return {"best_cost": self.best_cost,
                 "best_params": {
