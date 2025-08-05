@@ -93,11 +93,20 @@ def train_model_with_hyperparameters(hyperparams, training_data_path, pretrained
     )
 
     # Load the weights from the pre-trained model
-    if pretrained_path and Path(pretrained_path).exists():
+    if pretrained_path:
+        if not Path(pretrained_path).exists():
+            raise FileNotFoundError(
+                f"Pretrained BlenderNet weights not found at '{pretrained_path}'. "
+                "Generate weights with `python train_blender.py` or supply a valid file."
+            )
         try:
             model.load_state_dict(torch.load(pretrained_path, weights_only=False))
         except Exception as e:
-            print(f"⚠️ Could not load pre-trained weights: {e}. Training from scratch.")
+            raise RuntimeError(
+                "Failed to load pretrained BlenderNet weights from "
+                f"'{pretrained_path}': {e}. "
+                "Generate weights with `python train_blender.py` or supply a valid file."
+            ) from e
 
     # Train the model
     train_blender_net_from_json(
